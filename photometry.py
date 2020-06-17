@@ -69,10 +69,10 @@ def match_stars(file_std, files_detected):
 	
 	Parameters
 	----------
-	file_std : string
-		File name of the standard stars. Columns in the fie should be 'HIP', 
+	file_std : str
+		File name of the standard stars. Columns in the file should be 'HIP', 
 		'Vmag', 'RA', 'DE', 'B-V', 'V-I'.
-	files_detected : list of strings
+	files_detected : list of str
 		A list of file names containing stars detected in the image. Each file
 		name should have the starting x and y pixel positions as the last two 
 		numbers in the file name. Each file	should have columns 'field_x',
@@ -85,7 +85,7 @@ def match_stars(file_std, files_detected):
 	D : Pandas dataframe
 		Dataframe containing the reference stars detected in the image. 
 	T : Pandas dataframe
-		Dataframe containing all the standard stars info in the image.
+		Dataframe containing all the matched standard stars info in the image.
 	"""
 	#Standard stars
 	f = n.loadtxt(file_std)
@@ -113,6 +113,138 @@ def match_stars(file_std, files_detected):
 	
 	return H, D, T
 
+
+def compute_za_airmass(time, latitude, longitude, ra, dec):
+	"""
+	Compute zenith angles and airmass of the input list of stars given their 
+	RA and Dec from the specified time and observing location.
+	
+	Parameters
+	----------
+	time : Time object from astropy.time
+		UTC observing date and time.
+	latitude : number
+		Latitude in degrees of the observing site.
+	longitude : number
+		Longitude in degrees of the observing site.
+	ra : list of numbers
+		List of the right ascension in degrees.
+	dec : list of numbers
+		List of the declination in degrees.
+		
+	Returns
+	-------
+	za : list of numbers
+		A list of zenith angle in degrees.
+	airmass : list of numbers
+		A list of airmass.
+	"""
+	
+	#Zenith RA and Dec: compute based on the observing location and time
+	zenith_ra = time.sidereal_time('mean',longitude=longitude).degree #[degree]
+	zenith_de = latitude											  #[degree]
+
+	#Zenith angle: compute and add to the dataframe
+	al = DistanceAndBearing(zenith_de,zenith_ra,dec,ra)[0]  #star altitude
+	za = n.round(90-al, 2)  #star zenith angle [degree]
+
+	#Airmass: compute and add to the dataframe
+	airmass = 1/n.cos(n.deg2rad(za)) #airmass
+	
+	return za, airmass
+
+
+def photometry(x, y, img, exptime, dp=1, sig=2, snr=5, sa=5, bai=6, bao=10):
+	"""
+	Photometry of the stars with Gaussian PSF
+	
+	Parameters
+	----------
+	x : list of numbers
+		X coordinates of star location on the image.
+	y : list of numbers
+		Y coordinates of star location on the image. 
+	img : 2d array
+		Input image of stars to have photometry performed on.
+	exptime : number
+		Exposure time in second.
+	dp : number, optional
+		Position shift threshold in pixels for accepting the photometry point.
+	sig : number, optional
+		Gaussian sigma threshold in pixels for accepting the photometry point.
+	snr : number, optional
+		Signal-to-noise threshold for accepting the photometry point.
+	sa : int, optional 
+		Source window radius in pixels.
+	bai : int, optional
+		Bacuground ring inner radius in pixels.
+	bao : int, optional
+		Bacuground ring outer radius in pixels.
+		
+	Returns
+	-------
+	bestfit_x : list of numbers
+		Best fit x coordinates of the stars.
+	bestfit_y : list of numbers
+		Best fit y coordinates of the stars.
+	flux : list of numbers
+		Best fit flux of the background-subtracted stars in counts per second, 
+		assuming Gaussian PSF.
+	background : list of numbers
+		Best fit background around the stars in counts per second.
+	SN : list of numbers
+		Estimated signal-to-noise ration of the stars.
+	goodfit : list of bool
+		Indicate whether the fit passes the acceptance threshold.
+	"""
+	#define fitting window size 
+	s = n.arange(-bao, bao+1) 
+	xi, yi = n.meshgrid(s, s)
+	r = n.sqrt(xi**2+yi**2)
+	sw = n.where(r<=sa)               #source fitting window
+	bw = n.where((r>bai) & (r<bao))   #background window
+	
+	goodfit = [] #initialize goodfit to False
+	bestfit_x, bestfit_y, flux, background, SN = [], [], [], [], []
+	for xc, yc in zip(x,y):	
+		#cropp image centered on the star for fitting 
+		star = img[int(yc)+s[:,n.newaxis],int(xc)+s] / exptime #counts/sec
+	
+		#measure background
+		bg = n.median(star[bw])
+		
+		#fit background-subtracted flux
+		f = star[sw].ravel() - bg 				  #source pixels
+		p0 = (xc, yc, 3, 3000)#initial parameters (x,y,std,flux)
+		x, y = n.meshgrid(int(xc)+s,int(yc)+s)
+		popt = curve_fit(Gaussian_2d, [x[sw],y[sw]], f, p0=p0)[0]
+
+		#set the acceptance threshold to record the measurement
+		delta_position = n.sum(((popt-p0)[0:2]**2))**0.5   #position diff [pix]
+		sigma = abs(popt[2])          				       #sigma of the 2d gaussian
+		npix = n.pi*(3*sigma)**2 	   #numberof pixels in the approximated aperture
+		source_noise = popt[3]*exptime #noise from the source
+		sky_noise = npix*bg*exptime	   #noise from the sky background
+		dark_and_read_noise = 0		   #dark and read noise http://www2.lowell.edu/rsch/LMI/ETCMethod.pdf
+									#FIXME http://www.astro.wisc.edu/~sheinis/ast500/AY500_lect5.ppt.pdf	
+		totalnoise = n.sqrt(source_noise+sky_noise+dark_and_read_noise)
+		signal_to_noise = popt[3]*exptime/totalnoise       						
+	
+		if delta_position<dp and sigma<sig and signal_to_noise>snr:		#FIXME Adjust the SN ratio once the noise reduction is implimented!
+			goodfit.append(True)
+		else: 
+			goodfit.append(False)
+		
+		#record the fitting results
+		bestfit_x.append(round(popt[0],2))
+		bestfit_y.append(round(popt[1],2))
+		flux.append(round(popt[3],2))   #[counts/sec]
+		background.append(round(bg,2)) #[counts/sec]
+		SN.append(round(signal_to_noise,2))
+		
+	return bestfit_x, bestfit_y, flux, background, SN, goodfit
+	
+	
 #-----------------------------------------------------------------------------#
 
 
@@ -142,84 +274,26 @@ H, C, T = match_stars(fstd, fcor)
 #-----------------------------------------------------------------------------#
 #							Zenith angle and airmass 						  #
 #-----------------------------------------------------------------------------#
-#Compute RA and Dec at the zenith based on the observing location and time
-hdu3 = fits.open(forig, fix=False)
-time = Time(hdu3[0].header['DATE-OBS']) #UTC date and time
-#location = EarthLocation(lat=lat*u.deg, lon=long*u.deg, height=elev*u.m)
-c0 = [time.sidereal_time('mean',longitude=long).degree, lat]#[RA,Dec] in degrees
+#Open the original image and get the observing time
+hdu_orig = fits.open(forig, fix=False)[0] #open the original image file
+time = Time(hdu_orig.header['DATE-OBS'])  #UTC observing date and time
 
-#Zenith angle: compute and add to the dataframe
-AL = DistanceAndBearing(c0[1],c0[0],T.DE,T.RA)[0]  #star altitude
-T['ZA'] = n.round(90-AL, 2)  #star zenith angle
-
-#Airmass: compute and add to the dataframe
-T['Airmass'] = 1/n.cos(n.deg2rad(T['ZA'])) #airmass
+#Zenith RA and Dec: compute based on the observing location and time
+T['ZA'], T['Airmass'] = compute_za_airmass(time, lat, long, T.RA, T.DE)
 
 
 #-----------------------------------------------------------------------------#
-#	 Absolute photometry with Gaussian PSF: calculate flux and background	  #
+#	   	 Photometry with Gaussian PSF: calculate flux and background	 	  #
 #-----------------------------------------------------------------------------#
-#open the original image
-imgname = '40_sec_V_light_4x4.fit'
-hdu3 = fits.open('Test_Images/20200427/'+imgname, fix=False)
-
-data = hdu3[0].data
-exptime = hdu3[0].header['EXPTIME']
-
-#set aperture radius
-sa = 5   	#[pix] source fitting aperture radius
-bai = 6  	#[pix] bacuground aperture ring inner radius
-bao = 10 	#[pix] bacuground aperture ring outer radius
-
-#define window size for fitting
-s = n.arange(-bao, bao+1) 
-x, y = n.meshgrid(s, s)
-r = n.sqrt(x**2+y**2)
-sw = n.where(r<=sa)               #source window
-bw = n.where((r>bai) & (r<bao))   #background window
-
-T.loc[:, 'fit'] = False
-for i in range(len(T)):	
-	#star location on the image
-	x_center = int(T.field_x[i])
-	y_center = int(T.field_y[i])
-	
-	#cropped image centered on the star for fitting 
-	star = data[y_center+s[:,n.newaxis],x_center+s] / exptime #counts per second
-	
-	#measuring background
-	bg = n.median(star[bw])
-		
-	#fitting background-subtracted flux
-	f = star[sw].ravel() - bg 				  #source pixels
-	p0 = (T.field_x[i], T.field_y[i], 3, 3000)#initial parameters (x,y,std,flux)
-	x, y = n.meshgrid(x_center+s,y_center+s)
-	popt = curve_fit(Gaussian_2d, [x[sw],y[sw]], f, p0=p0)[0]
-
-	#set the acceptance threshold to record the measurement
-	delta_position = n.sum(((popt-p0)[0:2]**2))**0.5   #position diff [pix]
-	sigma = abs(popt[2])          				       #sigma of the 2d gaussian
-	npix = n.pi*(3*sigma)**2 	   #numberof pixels in the approximated aperture
-	source_noise = popt[3]*exptime #noise from the source
-	sky_noise = npix*bg*exptime	   #noise from the sky background
-	dark_and_read_noise = 0		   #dark and read noise http://www2.lowell.edu/rsch/LMI/ETCMethod.pdf
-								   #FIXME http://www.astro.wisc.edu/~sheinis/ast500/AY500_lect5.ppt.pdf	
-	totalnoise = n.sqrt(source_noise+sky_noise+dark_and_read_noise)
-	signal_to_noise = popt[3]*exptime/totalnoise       						
-	
-	if delta_position<1 and sigma<2 and signal_to_noise>5:		#FIXME Adjust the SN ratio once the noise reduction is implimented!
-		T.loc[i,['field_x','field_y']] = popt[0], popt[1]
-		T.loc[i,['Flux','Background']] = popt[3], bg   #[counts/sec]
-		T.loc[i,'fit'] = True
-		T.loc[i,'SN'] = signal_to_noise
-		T.loc[i,'Aperture'] = npix #background aperture radius [pix]		
+#photometry with Gaussian PSF
+T.field_x, T.field_y, T.Flux, T.Background, T.loc[:,'SN'], T.loc[:,'fit'] = \
+photometry(T.field_x, T.field_y, hdu_orig.data, hdu_orig.header['EXPTIME'])
 
 #delete the rows with bad photometry measurements
-print('%s stars are used in the photometric calibration.' % sum(T.fit==True))
-print('Additional %s stars rejected due to bad photometry.' % sum(T.fit==False))
+print('%s stars are used in the photometric calibration.' %sum(T.fit==True))
+print('Additional %s stars rejected due to bad photometry.' %sum(T.fit==False))
 T.drop(T[T.fit==False].index, inplace=True)
 T.drop(columns='fit', inplace=True)
-T = T.round({'field_x':2,'field_y':2,'Flux':2,'Background':2,'SN':2,'Sigma':2})
 
 
 #-----------------------------------------------------------------------------#
@@ -293,18 +367,13 @@ plt.show(block=False)
 
 #-----------------------------------------------------------------------------#
 
-#star zenith angle
-
-J = pd.concat([H,C],axis=1).dropna(subset=['Flux']).sort_values('Flux')
-J.reset_index(inplace=True)
-J['ZA'] = n.round(90-DistanceAndBearing(c0[1],c0[0],J.DE,J.RA)[0], 2)
-
-
 #import warnings
 #warnings.filterwarnings("ignore")
 #hdu3 = fits.open('Test_Images/20200427_Astrometry/wcs.fits')
 
 
+#location = EarthLocation(lat=lat*u.deg, lon=long*u.deg, height=elev*u.m)
+#c0 = [time.sidereal_time('mean',longitude=long).degree, lat]#[RA,Dec] in degrees
 
 
 

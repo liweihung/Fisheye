@@ -27,6 +27,7 @@
 #
 #-----------------------------------------------------------------------------#
 import numpy as n
+import operator
 import pandas as pd
 import re
 
@@ -154,7 +155,7 @@ def compute_za_airmass(time, latitude, longitude, ra, dec):
 	return za, airmass
 
 
-def photometry(x, y, img, exptime, dp=1, sig=2, snr=5, sa=5, bai=6, bao=10):
+def photometry(x, y, img, exptime, sa=5, bai=6, bao=10):
 	"""
 	Photometry of the stars with Gaussian PSF
 	
@@ -168,12 +169,6 @@ def photometry(x, y, img, exptime, dp=1, sig=2, snr=5, sa=5, bai=6, bao=10):
 		Input image of stars to have photometry performed on.
 	exptime : number
 		Exposure time in second.
-	dp : number, optional
-		Position shift threshold in pixels for accepting the photometry point.
-	sig : number, optional
-		Gaussian sigma threshold in pixels for accepting the photometry point.
-	snr : number, optional
-		Signal-to-noise threshold for accepting the photometry point.
 	sa : int, optional 
 		Source window radius in pixels.
 	bai : int, optional
@@ -192,10 +187,12 @@ def photometry(x, y, img, exptime, dp=1, sig=2, snr=5, sa=5, bai=6, bao=10):
 		assuming Gaussian PSF.
 	background : list of numbers
 		Best fit background around the stars in counts per second.
+	delta_position : list of numbers
+		Difference in pixels between the bestfit position and initial guess.
+	sigma : list of numbers
+		Sigma of the 2d gaussian in pixels.
 	SN : list of numbers
 		Estimated signal-to-noise ration of the stars.
-	goodfit : list of bool
-		Indicate whether the fit passes the acceptance threshold.
 	"""
 	#define fitting window size 
 	s = n.arange(-bao, bao+1) 
@@ -204,8 +201,8 @@ def photometry(x, y, img, exptime, dp=1, sig=2, snr=5, sa=5, bai=6, bao=10):
 	sw = n.where(r<=sa)               #source fitting window
 	bw = n.where((r>bai) & (r<bao))   #background window
 	
-	goodfit = [] #initialize goodfit to False
-	bestfit_x, bestfit_y, flux, background, SN = [], [], [], [], []
+	bestfit_x, bestfit_y, flux, background = [], [], [], [] 
+	delta_position, sigma, SN = [], [], []
 	for xc, yc in zip(x,y):	
 		#cropp image centered on the star for fitting 
 		star = img[int(yc)+s[:,n.newaxis],int(xc)+s] / exptime #counts/sec
@@ -220,31 +217,97 @@ def photometry(x, y, img, exptime, dp=1, sig=2, snr=5, sa=5, bai=6, bao=10):
 		popt = curve_fit(Gaussian_2d, [x[sw],y[sw]], f, p0=p0)[0]
 
 		#set the acceptance threshold to record the measurement
-		delta_position = n.sum(((popt-p0)[0:2]**2))**0.5   #position diff [pix]
-		sigma = abs(popt[2])          				       #sigma of the 2d gaussian
-		npix = n.pi*(3*sigma)**2 	   #numberof pixels in the approximated aperture
+
+		npix = n.pi*(3*popt[2])**2 	   #numberof pixels in the approximated aperture
 		source_noise = popt[3]*exptime #noise from the source
 		sky_noise = npix*bg*exptime	   #noise from the sky background
 		dark_and_read_noise = 0		   #dark and read noise http://www2.lowell.edu/rsch/LMI/ETCMethod.pdf
 									#FIXME http://www.astro.wisc.edu/~sheinis/ast500/AY500_lect5.ppt.pdf	
 		totalnoise = n.sqrt(source_noise+sky_noise+dark_and_read_noise)
 		signal_to_noise = popt[3]*exptime/totalnoise       						
-	
-		if delta_position<dp and sigma<sig and signal_to_noise>snr:		#FIXME Adjust the SN ratio once the noise reduction is implimented!
-			goodfit.append(True)
-		else: 
-			goodfit.append(False)
 		
 		#record the fitting results
 		bestfit_x.append(round(popt[0],2))
 		bestfit_y.append(round(popt[1],2))
 		flux.append(round(popt[3],2))   #[counts/sec]
-		background.append(round(bg,2)) #[counts/sec]
+		background.append(round(bg,2))  #[counts/sec]
+		delta_position.append(n.sum(((popt-p0)[0:2]**2))**0.5)  #[pix]
+		sigma.append(abs(popt[2]))          				    #[pix]
 		SN.append(round(signal_to_noise,2))
 		
-	return bestfit_x, bestfit_y, flux, background, SN, goodfit
+	return bestfit_x, bestfit_y, flux, background, delta_position, sigma, SN
 	
+
+def fit_zeropoint_and_extinction(df, selection=True, dp=1, sig=2, snr=5, z=1):
+	"""
+	Find the bestfit of zeropoint and extinction.
+
+	Parameters
+	----------
+	df : Pandas dataframe
+		Pandas dataframe containing the airmass and photometry of star. Must 
+		have df['Airmass'] and df['Flux'] columns.
+	selection : bool
+		Use the specified criteria (dp, sig, and snr) to select photometry 
+		points for fitting. If True, df must have 'deltap', 'sigma', and 'SN'
+		columns.
+	dp : number, optional
+		Position shift threshold in pixels for accepting the photometry point.
+	sig : number, optional
+		Gaussian sigma threshold in pixels for accepting the photometry point.
+	snr : number, optional
+		Signal-to-noise threshold for accepting the photometry point.
+	z : number, optional
+		Zscore threshold for accepting the photometry point.
+		
+	Returns
+	-------
+	bestfit : dict
+		Bestfit parameters formated as {'modelname':[intercept,slope]}
+	df_drop : Pandas dataframe
+		Contain rows of rejected stars.
+	"""
 	
+	#apparent magnitude of the background-subtraced stellar flux [counts/sec]
+	df['m'] = -2.5*n.log10(df.Flux)
+	df.dropna(inplace=True)
+	ntotal = len(df)
+
+	#use only selected points for fitting
+	if selection:
+		df_drop = df[(df['deltap']>dp) | (df['sigma']>sig) | (df['SN']<snr) |\
+					 (n.abs(stats.zscore(df.Vmag-df.m)) > z)]
+		df = df.drop(df_drop.index)
+		
+	nselect = len(df)
+	nreject = ntotal-len(df)
+
+	print('Total: %s stars have photometric measurements.' %ntotal)
+	print('Used: %s (%s%%) for fitting.'%(nselect, round(100*nselect/ntotal)))
+	print('Rejected: %s (%s%%).' %(nreject, round(100*nreject/ntotal)))
+	
+	##fitting for zeropoint and extinction using n.polyfit
+	#param, cov = n.polyfit(df.Airmass, df.Vmag-df.m, 1, cov=True)
+	#c, z = param                         #bestfit coefficient and zeropoint
+	#c_err, z_err = n.sqrt(cov.diagonal())#uncertainties
+	
+	estimators = [('OLS', LinearRegression()),
+				  ('Theil-Sen', TheilSenRegressor(random_state=42)),
+				  ('RANSAC', RANSACRegressor(random_state=42)),
+				  ('HuberRegressor', HuberRegressor())]
+
+	bestfit = {}
+	for name, estimator in estimators:
+		estimator.fit(df.Airmass[:, n.newaxis], df.Vmag-df.m)
+		if name == 'RANSAC':
+			bestfit[name] = [estimator.estimator_.intercept_, 
+							  estimator.estimator_.coef_]
+		else:
+			bestfit[name] = [estimator.intercept_, estimator.coef_]
+	
+	return bestfit, df_drop
+	
+
 #-----------------------------------------------------------------------------#
 
 
@@ -272,7 +335,7 @@ elev = 1580. #meters
 H, C, T = match_stars(fstd, fcor)
 
 #-----------------------------------------------------------------------------#
-#							Zenith angle and airmass 						  #
+#						Zenith angle and airmass 							  #
 #-----------------------------------------------------------------------------#
 #Open the original image and get the observing time
 hdu_orig = fits.open(forig, fix=False)[0] #open the original image file
@@ -286,76 +349,41 @@ T['ZA'], T['Airmass'] = compute_za_airmass(time, lat, long, T.RA, T.DE)
 #	   	 Photometry with Gaussian PSF: calculate flux and background	 	  #
 #-----------------------------------------------------------------------------#
 #photometry with Gaussian PSF
-T.field_x, T.field_y, T.Flux, T.Background, T.loc[:,'SN'], T.loc[:,'fit'] = \
+T.field_x, T.field_y, T.Flux, T.Background, T['deltap'], T['sigma'], T['SN'] =\
 photometry(T.field_x, T.field_y, hdu_orig.data, hdu_orig.header['EXPTIME'])
-
-#delete the rows with bad photometry measurements
-print('%s stars are used in the photometric calibration.' %sum(T.fit==True))
-print('Additional %s stars rejected due to bad photometry.' %sum(T.fit==False))
-T.drop(T[T.fit==False].index, inplace=True)
-T.drop(columns='fit', inplace=True)
-
 
 #-----------------------------------------------------------------------------#
 #						Zeropoint and extinction fitting					  #
 #-----------------------------------------------------------------------------#
-#apparent magnitude of the background-subtraced stellar flux [counts/sec]
-T['m'] = -2.5*n.log10(T.Flux)
-T.dropna(inplace=True)
+#fit the zeropoint and extinction
+bestfit, T_drop = fit_zeropoint_and_extinction(T, selection=True, 
+											   dp=1, sig=1, snr=5, z=1.5)
+T_use = T.drop(T_drop.index)
+	
+#-----------------------------------------------------------------------------#
+#							Plot the fitting results						  #
+#-----------------------------------------------------------------------------#
+fig = plt.figure('zeropoint_and_extinction_fit')
 
-T_orig = T.copy()
+#data points
+plt.plot(T_drop.Airmass, T_drop.Vmag-T_drop.m, 'o', c='k', fillstyle='none', 
+		 label='reference stars not used')
+plt.scatter(T_use.Airmass, T_use.Vmag-T_use.m, marker='o', c=T_use.SN, 
+			cmap='nipy_spectral_r')
 
-#T.drop(T[T.Vmag-T.m > 8.3].index, inplace=True)
-#T.drop(T[T.Vmag-T.m < 7.8].index, inplace=True)
-T.drop(T[n.abs(stats.zscore(T.Vmag-T.m)) > 1].index, inplace=True)
+#bestfit models
+colors = {'OLS': 'turquoise', 'Theil-Sen': 'gold', 'RANSAC': 'lightgreen', 
+		  'HuberRegressor': 'black'}
+linestyle = {'OLS':'-', 'Theil-Sen':'-.', 'RANSAC':'--', 'HuberRegressor':'--'}
+a = n.array([1,max(T.Airmass)])
+for name in bestfit:
+	intercept, slope = bestfit[name]
+	plt.plot(a, intercept+a*slope, color=colors[name], linestyle=linestyle[name],
+		linewidth=3, label='%s: %.2fx+%.3f ' % (name,slope,intercept))
 
-T_dropped = T_orig.drop(T.index)
-
-#fitting for zeropoint and extinction
-param, cov = n.polyfit(T.Airmass, T.Vmag-T.m, 1, cov=True)
-c, z = param                         #bestfit coefficient and zeropoint
-c_err, z_err = n.sqrt(cov.diagonal())#uncertainties
-
-#---------------------------
-
-#plotting
-fig = plt.figure('zeropoint3')
-#---------------------------
-estimators = [('OLS', LinearRegression()),
-              ('Theil-Sen', TheilSenRegressor(random_state=42)),
-              ('RANSAC', RANSACRegressor(random_state=42)),
-              ('HuberRegressor', HuberRegressor())]
-colors = {'OLS': 'turquoise', 'Theil-Sen': 'gold', 'RANSAC': 'lightgreen', 'HuberRegressor': 'black'}
-linestyle = {'OLS': '-', 'Theil-Sen': '-.', 'RANSAC': '--', 'HuberRegressor': '--'}
-lw = 3
-
-x_plot = n.linspace(T_orig.Airmass.min(), T_orig.Airmass.max())
-for name, estimator in estimators:
-	print(name)
-	model = make_pipeline(PolynomialFeatures(1), estimator)
-	model.fit(T_orig.Airmass[:, n.newaxis], T_orig.Vmag-T_orig.m)
-	#mse = mean_squared_error(model.predict(X_test), y_test)
-	y_plot = model.predict(x_plot[:, n.newaxis])
-	plt.plot(x_plot, y_plot, color=colors[name], linestyle=linestyle[name],
-			linewidth=lw, label='%s: error = %.3f' % (name, 999))
-
-legend_title = 'Error of Mean\nAbsolute Deviation\nto Non-corrupt Data'
-legend = plt.legend(loc='upper right', frameon=False, title=legend_title,
-                    prop=dict(size='x-small'))
-
-#---------------------------
-#plt.plot(T.Airmass, T.Vmag-T.m, 'o', alpha=T.SN/T.SN.max(), label='Hipparcos standard stars')
-plt.plot(T_dropped.Airmass, T_dropped.Vmag-T_dropped.m, 'o', c='k', 
-		 fillstyle='none', label='reference stars not used')
-plt.scatter(T.Airmass, T.Vmag-T.m, marker='o' ,c=T.SN, cmap='nipy_spectral_r')
-#plt.plot(T_orig.Airmass, T_orig.Vmag-T_orig.m, 'ko', alpha=0.1, label='reference stars not used')
-
+#general plot setting
+plt.legend(loc='upper right', frameon=False, numpoints=1)
 plt.colorbar()
-
-a = n.arange(n.ceil(max(T.Airmass))+1)
-plt.plot(a,c*a+z,'-',lw=2,label='Best fit: %.2fx+%.3f' %(c,z))
-plt.errorbar(0,z,z_err,fmt='o',label='zeropoint: %.3f+-%.3f'%(z,z_err))
-plt.legend(loc=0, numpoints=1)
 plt.xlabel('Airmass',fontsize=14)
 plt.ylabel('M-m',fontsize=14)
 plt.title('Zeropoint and Extinction Coefficient',fontsize=14)
@@ -365,12 +393,15 @@ plt.title('Zeropoint and Extinction Coefficient',fontsize=14)
 plt.show(block=False)
 
 
-#-----------------------------------------------------------------------------#
+#----------------old code below------------------------------------------------#
 
-#import warnings
-#warnings.filterwarnings("ignore")
-#hdu3 = fits.open('Test_Images/20200427_Astrometry/wcs.fits')
+#T_orig = T.copy()
+#T.drop(T[T.Vmag-T.m > 8.3].index, inplace=True)
+#T.drop(T[T.Vmag-T.m < 7.8].index, inplace=True)
+#T_dropped = T_orig.drop(T.index)
 
+#plt.plot(T_orig.Airmass, T_orig.Vmag-T_orig.m, 'ko', alpha=0.1, label='reference stars not used')
+#plt.errorbar(0,z,z_err,fmt='o',label='zeropoint: %.3f+-%.3f'%(z,z_err))
 
 #location = EarthLocation(lat=lat*u.deg, lon=long*u.deg, height=elev*u.m)
 #c0 = [time.sidereal_time('mean',longitude=long).degree, lat]#[RA,Dec] in degrees

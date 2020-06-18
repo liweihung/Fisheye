@@ -3,23 +3,25 @@
 #
 #NPS Night Skies Program
 #
-#Last updated: 2020/04/15
+#Last updated: 2020/06/18
 #
-#This script performs absolute photometry on fisheye images  
-#
+#This script finds the bestfit zeropoint and extinction coefficient. The script
+#first matches the detected stars in the image to a list of standard stars. The
+#merged list contains the stardard stars' V magnitudes and the approximated x 
+#and y positions in the image. Next, the zenith angle and airmass of the stars 
+#are calculated based on the observing time and location. Then Gaussian PSF 
+#photometry is performed to measure the detected brightness of each star. 
+#Finally, the script uses different robust leanear fitting algorithems to fit 
+#for the zeropoint and extintion coefficient on the M-m vs. airmass plot. 
 #
 #Input: 
 #   (1) 'hipparcos_bright_standards_vmag6.txt' -- Standard star catalog
 #	(2) 'Test_Images/20200427_Astrometry/corr.fits' -- matched star list
-#	(3) 'Test_Images/20200427_Astrometry/wcs.fits' -- wcs coordinates
-#	(4) 'Test_Images/20200427_Astrometry/40_sec_V_light_4x4_crop800.fit'
-#
-#	(2) 'Test_Images/20200427_Astrometry/new-image.fits'
-#	(3) 'Test_Images/20200427_Astrometry/rdls.fits'	
-#	(5) 
+#	(3) 'Test_Images/20200427_Astrometry/40_sec_V_light_4x4_crop800.fit'
+#	(4) observing latitude and longitude.
 #
 #Output:
-#   (1) 
+#   (1) 'Plots/zeropoint_and_extinction_fit.png'
 #   (2) 
 #
 #History:
@@ -27,30 +29,20 @@
 #
 #-----------------------------------------------------------------------------#
 import numpy as n
-import operator
 import pandas as pd
 import re
 
 from astropy import units as u
-from astropy.coordinates import SkyCoord, EarthLocation, AltAz, ICRS
 from astropy.io import fits
 from astropy.time import Time
-from astropy.wcs import WCS 
 from glob import glob
 from matplotlib import pyplot as plt
 from scipy.optimize import curve_fit
-from scipy.optimize import least_squares
 from scipy import stats
 from sklearn.linear_model import (
-    LinearRegression, TheilSenRegressor, RANSACRegressor, HuberRegressor)
-from sklearn.metrics import mean_squared_error
-from sklearn.preprocessing import PolynomialFeatures
-from sklearn.pipeline import make_pipeline
-
-
+     LinearRegression, TheilSenRegressor, RANSACRegressor, HuberRegressor)
 
 # Local Source
-#from gaussian import Gaussian_2d
 from sphericalgeometry import DistanceAndBearing
 
 #-----------------------------------------------------------------------------#
@@ -264,8 +256,8 @@ def fit_zeropoint_and_extinction(df, selection=True, dp=1, sig=2, snr=5, z=1):
 	-------
 	bestfit : dict
 		Bestfit parameters formated as {'modelname':[intercept,slope]}
-	df_drop : Pandas dataframe
-		Contain rows of rejected stars.
+	df : Pandas dataframe
+		Dataframe containing stars used in the fitting process.
 	"""
 	
 	#apparent magnitude of the background-subtraced stellar flux [counts/sec]
@@ -305,12 +297,10 @@ def fit_zeropoint_and_extinction(df, selection=True, dp=1, sig=2, snr=5, z=1):
 		else:
 			bestfit[name] = [estimator.intercept_, estimator.coef_]
 	
-	return bestfit, df_drop
+	return bestfit, df
 	
 
 #-----------------------------------------------------------------------------#
-
-
 #-----------------------------------------------------------------------------#
 #			  Input files													  #
 #-----------------------------------------------------------------------------#
@@ -327,7 +317,6 @@ forig = 'Test_Images/20200427/40_sec_V_light_4x4.fit'
 
 #observing location
 lat, long = 40.696034, -104.600301 #degrees
-elev = 1580. #meters
 
 #-----------------------------------------------------------------------------#
 #			  Merge the standard stars and astrometry star files			  #
@@ -356,9 +345,9 @@ photometry(T.field_x, T.field_y, hdu_orig.data, hdu_orig.header['EXPTIME'])
 #						Zeropoint and extinction fitting					  #
 #-----------------------------------------------------------------------------#
 #fit the zeropoint and extinction
-bestfit, T_drop = fit_zeropoint_and_extinction(T, selection=True, 
+bestfit, T_use = fit_zeropoint_and_extinction(T, selection=False, 
 											   dp=1, sig=1, snr=5, z=1.5)
-T_use = T.drop(T_drop.index)
+T_drop = T.drop(T_use.index)
 	
 #-----------------------------------------------------------------------------#
 #							Plot the fitting results						  #
@@ -382,27 +371,20 @@ for name in bestfit:
 		linewidth=3, label='%s: %.2fx+%.3f ' % (name,slope,intercept))
 
 #general plot setting
+cbar = plt.colorbar()
+cbar.ax.set_ylabel('signal-to-noise ratio')
 plt.legend(loc='upper right', frameon=False, numpoints=1)
-plt.colorbar()
-plt.xlabel('Airmass',fontsize=14)
-plt.ylabel('M-m',fontsize=14)
-plt.title('Zeropoint and Extinction Coefficient',fontsize=14)
-#imgout = filepath.calibdata+dnight+'/extinction_fit_%s_%s.png' %(filter,s[0])
-#plt.savefig(imgout)
-#plt.close('zeropoint')
+plt.xlabel('Airmass')
+plt.ylabel('M-m')
+plt.title('Zeropoint and Extinction Coefficient')
+imgout = 'Plots/zeropoint_and_extinction_fit.png'
+plt.savefig(imgout, dpi=300)
 plt.show(block=False)
 
 
 #----------------old code below------------------------------------------------#
-
-#T_orig = T.copy()
-#T.drop(T[T.Vmag-T.m > 8.3].index, inplace=True)
-#T.drop(T[T.Vmag-T.m < 7.8].index, inplace=True)
-#T_dropped = T_orig.drop(T.index)
-
-#plt.plot(T_orig.Airmass, T_orig.Vmag-T_orig.m, 'ko', alpha=0.1, label='reference stars not used')
-#plt.errorbar(0,z,z_err,fmt='o',label='zeropoint: %.3f+-%.3f'%(z,z_err))
-
+#from astropy.coordinates import EarthLocation
+#elev = 1580. #meters
 #location = EarthLocation(lat=lat*u.deg, lon=long*u.deg, height=elev*u.m)
 #c0 = [time.sidereal_time('mean',longitude=long).degree, lat]#[RA,Dec] in degrees
 

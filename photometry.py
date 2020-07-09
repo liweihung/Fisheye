@@ -256,6 +256,10 @@ def fit_zeropoint_and_extinction(df, selection=True, dp=1, sig=2, snr=5, z=1):
 	-------
 	bestfit : dict
 		Bestfit parameters formated as {'modelname':[intercept,slope]}
+	z_err: float
+		Uncertainty of the best fit intercept from OLS
+	c_err: float
+		Uncertainty of the best fit slope from OLS
 	df : Pandas dataframe
 		Dataframe containing stars used in the fitting process.
 	"""
@@ -278,17 +282,15 @@ def fit_zeropoint_and_extinction(df, selection=True, dp=1, sig=2, snr=5, z=1):
 	print('Used: %s (%s%%) for fitting.'%(nselect, round(100*nselect/ntotal)))
 	print('Rejected: %s (%s%%).' %(nreject, round(100*nreject/ntotal)))
 	
-	##fitting for zeropoint and extinction using n.polyfit
-	#param, cov = n.polyfit(df.Airmass, df.Vmag-df.m, 1, cov=True)
-	#c, z = param                         #bestfit coefficient and zeropoint
-	#c_err, z_err = n.sqrt(cov.diagonal())#uncertainties
-	
-	estimators = [('OLS', LinearRegression()),
-				  ('Theil-Sen', TheilSenRegressor(random_state=42)),
+	estimators = [('Theil-Sen', TheilSenRegressor(random_state=42)),
 				  ('RANSAC', RANSACRegressor(random_state=42)),
 				  ('HuberRegressor', HuberRegressor())]
 
-	bestfit = {}
+	#fitting with OLS using n.polyfit
+	param, cov = n.polyfit(df.Airmass, df.Vmag-df.m, 1, cov=True)
+	c_err, z_err = n.sqrt(cov.diagonal())#uncertainties
+	bestfit = {'OLS':[param[1], param[0]]}
+
 	for name, estimator in estimators:
 		estimator.fit(df.Airmass[:, n.newaxis], df.Vmag-df.m)
 		if name == 'RANSAC':
@@ -297,7 +299,7 @@ def fit_zeropoint_and_extinction(df, selection=True, dp=1, sig=2, snr=5, z=1):
 		else:
 			bestfit[name] = [estimator.intercept_, estimator.coef_]
 	
-	return bestfit, df
+	return bestfit, z_err, c_err, df
 	
 
 #-----------------------------------------------------------------------------#
@@ -345,8 +347,8 @@ photometry(T.field_x, T.field_y, hdu_orig.data, hdu_orig.header['EXPTIME'])
 #						Zeropoint and extinction fitting					  #
 #-----------------------------------------------------------------------------#
 #fit the zeropoint and extinction
-bestfit, T_use = fit_zeropoint_and_extinction(T, selection=False, 
-											   dp=1, sig=1, snr=5, z=1.5)
+bestfit, z_err, e_err, T_use = fit_zeropoint_and_extinction(T, selection=True, 
+							   dp=1, sig=1, snr=5, z=1.5)
 T_drop = T.drop(T_use.index)
 	
 #-----------------------------------------------------------------------------#
@@ -367,8 +369,13 @@ linestyle = {'OLS':'-', 'Theil-Sen':'-.', 'RANSAC':'--', 'HuberRegressor':'--'}
 a = n.array([1,max(T.Airmass)])
 for name in bestfit:
 	intercept, slope = bestfit[name]
+	if name == 'OLS':
+		label = '%s: (%.2f$\pm$%.2f)x+(%.2f$\pm$%.2f) ' \
+				% (name,slope,e_err,intercept,z_err)
+	else: 
+		label = '%s: %.2fx+%.2f ' % (name,slope,intercept)
 	plt.plot(a, intercept+a*slope, color=colors[name], linestyle=linestyle[name],
-		linewidth=3, label='%s: %.2fx+%.3f ' % (name,slope,intercept))
+		linewidth=3, label=label)
 
 #general plot setting
 cbar = plt.colorbar()

@@ -262,6 +262,14 @@ class Client(object):
         result = self.send_request('jobs/%s/annotations' % job_id)
         return result
 
+    def calibrate_data(self,job_id):
+        """
+        :param job_id: id of job
+        :return: parity,orientation,pixscale,radius,ra, and dec
+        """
+        result = self.send_request('jobs/%s/calibration' % job_id)
+        return result
+
     def sub_status(self, sub_id, justdict=False):
         result = self.send_request('submissions/%s' % sub_id)
         if justdict:
@@ -291,7 +299,8 @@ if __name__ == '__main__':
     parser.add_option('--corr', dest='corr', help='Download resulting corr.fits file, saving to given filename; implies --wait if --urlupload or --upload')
     parser.add_option('--newfits', dest='newfits', help='Download resulting new-image.fits file, saving to given filename; implies --wait if --urlupload or --upload')
     parser.add_option('--kmz', dest='kmz', help='Download resulting kmz file, saving to given filename; implies --wait if --urlupload or --upload')
-    parser.add_option('--annotate','-a',dest='annotate',help='store information about annotations in give file, JSON format; implies --wait if --urlupload or --upload')
+    parser.add_option('--annotate','-a',dest='annotate',help='store information about annotations in given file, JSON format; implies --wait if --urlupload or --upload')
+    parser.add_option('--calibrate','-C',dest='calibrate',help='store information about calibration in given file, JSON format; implies --wait if --urlupload or --upload')
     parser.add_option('--urlupload', '-U', dest='upload_url', help='Upload a file at specified url')
     parser.add_option('--scale-units', dest='scale_units',
                       choices=('arcsecperpix', 'arcminwidth', 'degwidth', 'focalmm'), help='Units for scale estimate')
@@ -361,7 +370,7 @@ if __name__ == '__main__':
     c.login(opt.apikey)
 
     if opt.upload or opt.upload_url or opt.upload_xy:
-        if opt.wcs or opt.corr or opt.kmz or opt.newfits or opt.annotate:
+        if opt.wcs or opt.corr or opt.kmz or opt.newfits or opt.annotate or opt.calibrate:
             opt.wait = True
 
         kwargs = dict(
@@ -470,6 +479,10 @@ if __name__ == '__main__':
             with open(opt.annotate,'w') as f:
                 f.write(python2json(result))
 
+        if opt.calibrate:
+            result = c.calibrate_data(opt.solved_id)
+            with open(opt.calibrate,'w') as f:
+                f.write(python2json(result))
     if opt.wait:
         # behaviour as in old implementation
         opt.sub_id = None

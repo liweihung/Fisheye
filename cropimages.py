@@ -20,7 +20,6 @@
 import numpy as n
 
 from astropy.io import fits
-from astropy.wcs import WCS
 from matplotlib import pyplot as plt
 #-----------------------------------------------------------------------------#
 

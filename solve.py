@@ -10,6 +10,7 @@
 #
 #Input: 
 #   (1) Fits images
+#	(2) API key for astrometry.net
 #
 #Output:
 #   (1) Fits images with wcs attached
@@ -25,10 +26,11 @@ from glob import glob, iglob
 
 #-----------------------------------------------------------------------------#
 
-filedir = "Test_Images/20200427_Astrometry_small_set/failed/"
+filedir = "Test_Images/20200427_Astrometry_small_set/"
 
-for i, fn in enumerate(glob(filedir+"*")):
-	cmd = f"python client.py -k your_API_key --upload {fn} --newfits {fn}_new.FIT --wcs {fn}_wcs.FIT --corr {fn}_corr.FIT"
+for i, fn in enumerate(glob(filedir+"*1057_658.fit")):
+	#cmd = f"python client.py -k cllxijkpvxsibace --upload {fn} --newfits {fn}_new.FIT --wcs {fn}_wcs.FIT --corr {fn}_corr.FIT"
+	cmd = f"python client.py -k cllxijkpvxsibace -j 4512556"	
 	t1 = datetime.now()
 	os.system(cmd)
 	t2 = datetime.now()

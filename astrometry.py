@@ -3,20 +3,22 @@
 #
 #NPS Night Skies Program
 #
-#Last updated: 2020/08/26
+#Last updated: 2020/09/22
 #
-#This script solves the image pointing and identifies the standard stars in the images.
-#uses the API (client.py) to upload images to astrometry.net for 
-#solving the images. 
+#This script solves the image pointing and identifies the standard stars in the 
+#images. First, the script crops the input into a smaller subset of images. 
+#Then, some selected croped images are sent through client.py to astrometry.net 
+#to solve. The detected standard stars list and the center coordinates are 
+#downloaded. The standard star lists re combined while only the central 
+#coordinates of the originl imageis save. Interim processing files are deleted. 
 #
 #Input: 
-#   (1) ??Fits images
-#	(2) ??API key for astrometry.net
+#   (1) Mask for the fisheye view
+#	(2) Raw fisheye images to be solved
 #
 #Output:
-#   (1) ??Fits images with wcs attached
-#   (2) ??WCS files
-#	(3) ??Corr files - correspondences between image and reference stars (table)
+#   (1) detected_stars.csv
+#   (2) center.txt
 #
 #History:
 #	Li-Wei Hung -- Created 
@@ -75,7 +77,7 @@ for f in glob(filepath.data_raw+'*light*.fit'):
 									 --corr {fn[:-4]}_corr.fit \
 									 --calibrate {fn[:-4]}_calib.txt"
 			t1 = datetime.now()
-			#os.system(cmd)
+			os.system(cmd)
 			t2 = datetime.now()
 			t.append([fn,f'Total time:{t2-t1}'])
 			
@@ -95,6 +97,7 @@ for i,f in enumerate(fcor):
 	if crop_shift == [xbound[int(len(xbound)/2)],ybound[int(len(xbound)/2)]]:
 		shutil.copyfile(f[:-8]+'calib.txt',filepath.data_cal+'center.txt')
 	hdu.close()
+	
 D.rename(columns={'index_ra':'RA','index_dec':'DE'},inplace=True)
 D.rename(columns={'FLUX':'Flux','BACKGROUND':'Background'},inplace=True)
 D = D[['field_x','field_y','RA','DE','Flux','Background']]

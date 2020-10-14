@@ -3,7 +3,7 @@
 #
 #NPS Night Skies Program
 #
-#Last updated: 2020/06/18
+#Last updated: 2020/10/14
 #
 #This script finds the bestfit zeropoint and extinction coefficient. The script
 #first matches the detected stars in the image to a list of standard stars. The
@@ -16,13 +16,13 @@
 #
 #Input: 
 #   (1) 'hipparcos_bright_standards_vmag6.txt' -- Standard star catalog
-#	(2) 'Test_Images/20200427_Astrometry/corr.fits' -- matched star list
-#	(3) 'Test_Images/20200427_Astrometry/40_sec_V_light_4x4_crop800.fit'
+#	(2) 'detected_stars.csv' -- Detected stars from astrometry.net
+#	(3) filepath.data_cal+filepath.reference -- reference fisheye image
 #	(4) observing latitude and longitude.
 #
 #Output:
-#   (1) 'Plots/zeropoint_and_extinction_fit.png'
-#   (2) 
+#   (1) filepath_data_cal+'zeropoint.png'
+#   (2) filepath_data_cal+'zeropoint.csv'
 #
 #History:
 #	Li-Wei Hung -- Created 
@@ -30,19 +30,17 @@
 #-----------------------------------------------------------------------------#
 import numpy as n
 import pandas as pd
-import re
 
-from astropy import units as u
 from astropy.io import fits
 from astropy.time import Time
-from glob import glob
 from matplotlib import pyplot as plt
 from scipy.optimize import curve_fit
 from scipy import stats
 from sklearn.linear_model import (
-     LinearRegression, TheilSenRegressor, RANSACRegressor, HuberRegressor)
+     TheilSenRegressor, RANSACRegressor, HuberRegressor)
 
 # Local Source
+import filepath
 from sphericalgeometry import DistanceAndBearing
 
 #-----------------------------------------------------------------------------#
@@ -56,7 +54,7 @@ def Gaussian_2d(xy, x0, y0, sigma, V):
 	return g.ravel()
 
 
-def match_stars(file_std, files_detected):
+def match_stars(file_std, file_detected):
 	"""
 	Merge the standard stars and stars detected in the images.
 	
@@ -65,11 +63,9 @@ def match_stars(file_std, files_detected):
 	file_std : str
 		File name of the standard stars. Columns in the file should be 'HIP', 
 		'Vmag', 'RA', 'DE', 'B-V', 'V-I'.
-	files_detected : list of str
-		A list of file names containing stars detected in the image. Each file
-		name should have the starting x and y pixel positions as the last two 
-		numbers in the file name. Each file	should have columns 'field_x',
-		'field_y','index_ra','index_dec','FLUX','BACKGROUND'.
+	file_detected : str
+		File name of the stars detected in the image. Columns in the file are 
+		'RA', 'DE', 'field_x', 'field_y', 'Flux', and 'Background'.
 		
 	Returns
 	-------
@@ -87,18 +83,7 @@ def match_stars(file_std, files_detected):
 	H.set_index(['RA','DE'], inplace=True)
 	
 	#Astrometry files containing star position and brightness in the image 
-	D = pd.DataFrame()
-	for i,f in enumerate(files_detected):
-		crop_shift = [int(s) for s in re.findall(r'\d+', f)[-2:]] 
-		hdu = fits.open(f)
-		F = pd.DataFrame.from_records(hdu[1].data).astype('float64').round(3)
-		F['field_x'] += crop_shift[0] - 1 #Start counting from 0 instead of 1
-		F['field_y'] += crop_shift[1] - 1 #Offset to the uncroped img position
-		D = pd.concat([D,F],axis=0,join='outer')
-	D.rename(columns={'index_ra':'RA','index_dec':'DE'},inplace=True)
-	D.rename(columns={'FLUX':'Flux','BACKGROUND':'Background'},inplace=True)
-	D = D[['field_x','field_y','RA','DE','Flux','Background']]
-	D.set_index(['RA','DE'], inplace=True)
+	D = pd.read_csv(file_detected,index_col=['RA','DE'])
 
 	#Merge the data frames to get the overlapped stars
 	T = pd.concat([H,D],axis=1,join='inner').sort_values('Vmag')
@@ -210,11 +195,10 @@ def photometry(x, y, img, exptime, sa=5, bai=6, bao=10):
 
 		#set the acceptance threshold to record the measurement
 
-		npix = n.pi*(3*popt[2])**2 	   #numberof pixels in the approximated aperture
+		npix = n.pi*(3*popt[2])**2 	   #numberof pixels in the aperture
 		source_noise = popt[3]*exptime #noise from the source
 		sky_noise = npix*bg*exptime	   #noise from the sky background
-		dark_and_read_noise = 0		   #dark and read noise http://www2.lowell.edu/rsch/LMI/ETCMethod.pdf
-									#FIXME http://www.astro.wisc.edu/~sheinis/ast500/AY500_lect5.ppt.pdf	
+		dark_and_read_noise = 200	   #dark and read noise, approximated dummy
 		totalnoise = n.sqrt(source_noise+sky_noise+dark_and_read_noise)
 		signal_to_noise = popt[3]*exptime/totalnoise       						
 		
@@ -295,105 +279,96 @@ def fit_zeropoint_and_extinction(df, selection=True, dp=1, sig=2, snr=5, z=1):
 		estimator.fit(df.Airmass[:, n.newaxis], df.Vmag-df.m)
 		if name == 'RANSAC':
 			bestfit[name] = [estimator.estimator_.intercept_, 
-							  estimator.estimator_.coef_]
+							  estimator.estimator_.coef_[0]]
 		else:
-			bestfit[name] = [estimator.intercept_, estimator.coef_]
+			bestfit[name] = [estimator.intercept_, estimator.coef_[0]]
 	
 	return bestfit, z_err, c_err, df
+
+
+def main():
+	"""
+	This script performs Gaussian PSF photometry and fit for the photometric 
+	zeropoint and extinction coefficient. See the script description for detail.
+	All the inputs are defined and passed through filepath.
+	"""
+	#--------------------------------------------------------------------------#
+	#		   Merge the standard star and detected star lists				   #
+	#--------------------------------------------------------------------------#
+	fstd = filepath.calibration+'hipparcos_bright_standards_vmag6.txt' #standard 
+	fcor = filepath.data_cal+'detected_stars.csv'  #detected from astrometry.net
+
+	H, C, T = match_stars(fstd, fcor)
+
+	#--------------------------------------------------------------------------#
+	#						Zenith angle and airmass 						   #
+	#--------------------------------------------------------------------------#
+	#Open the original image and get the observing time and location
+	hdu_orig = fits.open(filepath.data_cal+filepath.reference, fix=False)[0] 
+	time = Time(hdu_orig.header['DATE-OBS'])  	#UTC observing date and time
+	lat, long = filepath.lat, filepath.long 	#degrees
 	
-
-#-----------------------------------------------------------------------------#
-#-----------------------------------------------------------------------------#
-#			  Input files													  #
-#-----------------------------------------------------------------------------#
-
-#standard stars
-fstd = 'hipparcos_bright_standards_vmag6.txt' 
-
-#detected reference stars from astrometry.net
-fcor = glob('Test_Images/20200427_Astrometry_small_set/*corr*') 
-#fcor = glob('Test_Images/20200427_Astrometry/*800*_corr*')
-
-#original image 
-forig = 'Test_Images/20200427/40_sec_V_light_4x4.fit'
-
-#observing location
-lat, long = 40.696034, -104.600301 #degrees
-
-#-----------------------------------------------------------------------------#
-#			  Merge the standard stars and astrometry star files			  #
-#-----------------------------------------------------------------------------#
-H, C, T = match_stars(fstd, fcor)
-
-#-----------------------------------------------------------------------------#
-#						Zenith angle and airmass 							  #
-#-----------------------------------------------------------------------------#
-#Open the original image and get the observing time
-hdu_orig = fits.open(forig, fix=False)[0] #open the original image file
-time = Time(hdu_orig.header['DATE-OBS'])  #UTC observing date and time
-
-#Zenith RA and Dec: compute based on the observing location and time
-T['ZA'], T['Airmass'] = compute_za_airmass(time, lat, long, T.RA, T.DE)
-
-
-#-----------------------------------------------------------------------------#
-#	   	 Photometry with Gaussian PSF: calculate flux and background	 	  #
-#-----------------------------------------------------------------------------#
-#photometry with Gaussian PSF
-T.field_x, T.field_y, T.Flux, T.Background, T['deltap'], T['sigma'], T['SN'] =\
-photometry(T.field_x, T.field_y, hdu_orig.data, hdu_orig.header['EXPTIME'])
-
-#-----------------------------------------------------------------------------#
-#						Zeropoint and extinction fitting					  #
-#-----------------------------------------------------------------------------#
-#fit the zeropoint and extinction
-bestfit, z_err, e_err, T_use = fit_zeropoint_and_extinction(T, selection=True, 
-							   dp=1, sig=1, snr=5, z=1.5)
-T_drop = T.drop(T_use.index)
+	#Zenith RA and Dec: compute based on the observing location and time
+	T['ZA'], T['Airmass'] = compute_za_airmass(time, lat, long, T.RA, T.DE)
 	
-#-----------------------------------------------------------------------------#
-#							Plot the fitting results						  #
-#-----------------------------------------------------------------------------#
-fig = plt.figure('zeropoint_and_extinction_fit')
+	#--------------------------------------------------------------------------#
+	# 	 	Photometry with Gaussian PSF: calculate flux and background	 	   #
+	#--------------------------------------------------------------------------#
+	#photometry with Gaussian PSF
+	T.field_x, T.field_y, T.Flux, T.Background, T['deltap'],T['sigma'],T['SN']=\
+	photometry(T.field_x, T.field_y, hdu_orig.data, hdu_orig.header['EXPTIME'])
+	
+	#--------------------------------------------------------------------------#
+	#						Zeropoint and extinction fitting				   #
+	#--------------------------------------------------------------------------#
+	#fit the zeropoint and extinction
+	bestfit, z_err, e_err, T_use = fit_zeropoint_and_extinction(T, 
+								   selection=True, dp=1, sig=1, snr=5, z=1.5)
+	T_drop = T.drop(T_use.index)
+	
+	#save the bestfit to a file
+	F = pd.DataFrame.from_dict(bestfit, orient='index')
+	F.columns=['Zeropoint','Extinction']
+	F.to_csv(filepath.data_cal+'zeropoint.csv')
+		
+	#--------------------------------------------------------------------------#
+	#						Plot the fitting results						   #
+	#--------------------------------------------------------------------------#
+	fig = plt.figure('zeropoint_and_extinction_fit')
+	
+	#data points
+	plt.plot(T_drop.Airmass, T_drop.Vmag-T_drop.m, 'o', c='k', fillstyle='none', 
+			label='reference stars not used')
+	plt.scatter(T_use.Airmass, T_use.Vmag-T_use.m, marker='o', c=T_use.SN, 
+				cmap='nipy_spectral_r')
+	
+	#bestfit models
+	colors = {'OLS': 'turquoise', 'Theil-Sen': 'gold', 'RANSAC': 'lightgreen', 
+			'HuberRegressor': 'black'}
+	linestyle = {'OLS':'-','Theil-Sen':'-.','RANSAC':'--','HuberRegressor':'--'}
+	a = n.array([1,max(T.Airmass)])
+	for name in bestfit:
+		intercept, slope = bestfit[name]
+		if name == 'OLS':
+			label = '%s: (%.2f$\pm$%.2f)x+(%.2f$\pm$%.2f) ' \
+					% (name,slope,e_err,intercept,z_err)
+		else: 
+			label = '%s: %.2fx+%.2f ' % (name,slope,intercept)
+		plt.plot(a, intercept+a*slope, color=colors[name], 
+				linestyle=linestyle[name], linewidth=3, label=label)
+	
+	#general plot setting
+	cbar = plt.colorbar()
+	cbar.ax.set_ylabel('signal-to-noise ratio')
+	plt.legend(loc='upper right', frameon=False, numpoints=1)
+	plt.xlabel('Airmass')
+	plt.ylabel('M-m')
+	plt.title('Zeropoint and Extinction Coefficient')
+	imgout = filepath.data_cal+'zeropoint.png'
+	plt.savefig(imgout, dpi=300)
+	plt.show(block=False)
 
-#data points
-plt.plot(T_drop.Airmass, T_drop.Vmag-T_drop.m, 'o', c='k', fillstyle='none', 
-		 label='reference stars not used')
-plt.scatter(T_use.Airmass, T_use.Vmag-T_use.m, marker='o', c=T_use.SN, 
-			cmap='nipy_spectral_r')
 
-#bestfit models
-colors = {'OLS': 'turquoise', 'Theil-Sen': 'gold', 'RANSAC': 'lightgreen', 
-		  'HuberRegressor': 'black'}
-linestyle = {'OLS':'-', 'Theil-Sen':'-.', 'RANSAC':'--', 'HuberRegressor':'--'}
-a = n.array([1,max(T.Airmass)])
-for name in bestfit:
-	intercept, slope = bestfit[name]
-	if name == 'OLS':
-		label = '%s: (%.2f$\pm$%.2f)x+(%.2f$\pm$%.2f) ' \
-				% (name,slope,e_err,intercept,z_err)
-	else: 
-		label = '%s: %.2fx+%.2f ' % (name,slope,intercept)
-	plt.plot(a, intercept+a*slope, color=colors[name], linestyle=linestyle[name],
-		linewidth=3, label=label)
-
-#general plot setting
-cbar = plt.colorbar()
-cbar.ax.set_ylabel('signal-to-noise ratio')
-plt.legend(loc='upper right', frameon=False, numpoints=1)
-plt.xlabel('Airmass')
-plt.ylabel('M-m')
-plt.title('Zeropoint and Extinction Coefficient')
-imgout = 'Plots/zeropoint_and_extinction_fit.png'
-plt.savefig(imgout, dpi=300)
-plt.show(block=False)
-
-
-#----------------old code below------------------------------------------------#
-#from astropy.coordinates import EarthLocation
-#elev = 1580. #meters
-#location = EarthLocation(lat=lat*u.deg, lon=long*u.deg, height=elev*u.m)
-#c0 = [time.sidereal_time('mean',longitude=long).degree, lat]#[RA,Dec] in degrees
 
 
 

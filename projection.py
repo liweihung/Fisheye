@@ -105,6 +105,14 @@ plt.show(block=False)
 
 
 
+#----------------old code below------------------------------------------------#
 
+plt.figure()
+plt.rcParams['image.cmap'] = 'NPS_mag'
+current_cmap = plt.cm.get_cmap()
+current_cmap.set_bad(color='black')
+plt.imshow(fits.open(f,uint=False)[0].data,vmin=14,vmax=24)
 
+plt.colorbar()
+plt.show(block=False)
 

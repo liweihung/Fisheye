@@ -26,6 +26,7 @@
 # Local Source
 import astrometry
 import filepath
+import photometric_calibration
 import photometry
 import reduction
 
@@ -35,5 +36,7 @@ reduction.main()
 if filepath.measure_reference:
 	astrometry.main()
 	photometry.main()
+	
+photometric_calibration.main()
 	
 	

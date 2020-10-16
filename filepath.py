@@ -7,13 +7,12 @@ fn_flatv = 'flat_4x4_rebinned_20200623.fit'
 fn_flatb = ''
 fn_mask = 'flat_4x4_rebinned_20200623_mask.fit'
 fn_zeropoint = 'zeropoint.txt'
-use_default_zeropoint = False	#[True/False] If False, measured zeropoint from 
-								#this dataset will be used instead
+use_default_zeropoint = True	#[True/False] If False, use measured zeropoint
 
 processor = 'L_Hung'
 
 #Measure zeropoint, extinction coefficient, and center on the reference image?
-measure_reference = True				#[True/False]Slove the reference image?
+measure_reference = False				#[True/False]Slove the reference image?
 reference = '40_sec_V_light_4x4.fit'	#Reference image
 apikey = 'cllxijkpvxsibace' 			#Astrometry API key
 

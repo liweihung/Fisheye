@@ -49,12 +49,8 @@ def main():
 	xp, fp = n.loadtxt(filepath.linearity, unpack=True)
 	
 	
-	#Flat - load in flat
-	flat = {'V':fits.open(filepath.flatv,uint=False)[0].data}
-	try:
-		flat['B'] = fits.open(filepath.flatb,uint=False)[0].data
-	except:
-		pass
+	#Flat - read in the flat filenames
+	flatfile = {'V':filepath.fn_flatv, 'B':filepath.fn_flatb}
 
 	
 	#Bias - generate averaged bias 
@@ -64,7 +60,7 @@ def main():
 	bias = n.average(biaslist,axis=0)
 	
 	
-	#Dark - average dark that is bias subtracted and linearity response corrected
+	#Dark - average dark is bias subtracted and linearity response corrected
 	darklist = [
 		fits.open(i,uint=False)[0].data 
 		for i in glob(filepath.data_raw+'*dark*.fit')]
@@ -81,14 +77,21 @@ def main():
 	
 	
 	#Calibration - calibrate the science images
-	for k in flat.keys(): 								#loop through filters
-		for f in glob(filepath.data_raw+'*{}_light*'.format(k)):
+	for k in flatfile.keys(): 							#loop through filters
+		try: 
+			flat = fits.open(filepath.calibration+flatfile[k],uint=0)[0].data
+		except: pass
+		for f in glob(filepath.data_raw+f'*{k}_light*'):
 			image  = fits.open(f,uint=False)[0]
 			light  = image.data 						#science image
 			light *= mask								#apply fisheye mask
 			light -= bias								#subtract bias
 			light *= n.interp(light,xp,fp)				#correct for linearity
 			light -= dark								#subtract dark
-			light /= flat[k]							#divide by flat
+			light /= flat							#divide by flat
+			hdr = image.header
+			hdr['history'] = f'Linearity curve used is {filepath.fn_linearity}'
+			hdr['history'] = f'Flat used is {flatfile[k]}'
+			hdr['history'] = f'Mask used is {filepath.fn_mask}'			
 			fits.writeto(filepath.data_cal+f[len(filepath.data_raw):],light,
-						 header=image.header,overwrite=1)
+						 header=hdr,overwrite=1)

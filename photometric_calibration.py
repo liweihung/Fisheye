@@ -3,80 +3,65 @@
 #
 #NPS Night Skies Program
 #
-#Last updated: 2020/10/14
+#Last updated: 2020/10/15
 #
-#This script 
+#This script performs absolute photometric calibration using the image pixel 
+#scale and the instrumental zeropoint. This script convers the image from 
+#ADU/sec to magnitude per square arcsec. 
+#  
 #Input: 
-#   (1) 
+#   (1) zeropoint.csv 	#zeropoint associated with the camera system
+#	(2) platescale.csv 	#platescale associated with the binning factor
+#	(3) fisheye images to be photometrically calibrated
 #
 #Output:
-#   (1) 
-#   (2) 
+#   (1) photometrically calibrated images 
 #
 #History:
 #	Li-Wei Hung -- Created 
 #
 #-----------------------------------------------------------------------------#
-import ast
 import numpy as n
 import pandas as pd
 
 from astropy.io import fits
 from glob import glob
 
-from matplotlib import pyplot as plt
-
-
 # Local Source
-
-import colormaps
-
 import filepath
 
 #-----------------------------------------------------------------------------#
 
-#-----------------------------------------------------------------------------#
-#-----------------------------------------------------------------------------#
-#			  Input files													  #
-#-----------------------------------------------------------------------------#
-#original image 
-
-#read in zeropoint
-if filepath.use_default_zeropoint:
-	Z = pd.read_csv(filepath.calibration+'zeropoint.csv',index_col=0)
-	zp = Z['Zeropoint'][filepath.camera]
-else:
-	Z = pd.read_csv(filepath.data_cal+'zeropoint.csv')
-	zp = Z['Zeropoint'].mean()
+def main():
+	"""
+	This script performs absolute photometric calibration. See the script 
+	description for detail.
+	"""
 	
-#Read in the pixel scale
-file = open(filepath.data_cal+'center.txt', "r")
-center = ast.literal_eval(file.read())
-file.close()
-pixscale = center['pixscale'] #["/pix]
-
-#platescale adjustment
-psa = 2.5*n.log10(pixscale**2) 
-
-#brightness calibration
-for f in glob(filepath.data_cal+'*light*'):
-	image = fits.open(f,uint=False)[0]
-	exptime = image.header['EXPTIME'] #[sec]
-	data = image.data
-	mc = zp+psa-2.5*n.log10(data/exptime)
-
-
-plt.figure()
-plt.rcParams['image.cmap'] = 'NPS_mag'
-current_cmap = plt.cm.get_cmap()
-current_cmap.set_bad(color='black')
-plt.imshow(mc,vmin=14,vmax=24)
-
-plt.colorbar()
-plt.show(block=False)
-
-
-
-
-
-
+	#read in the zeropoint
+	if filepath.use_default_zeropoint:	#use the default value
+		Z = pd.read_csv(filepath.calibration+'zeropoint.csv',index_col=0)
+		zp = Z['Zeropoint'][filepath.camera]
+	else:								#use the measured value from the dataset
+		Z = pd.read_csv(filepath.data_cal+'zeropoint.csv')
+		zp = Z['Zeropoint'].mean()
+		
+	#read in the pixel scale associated with the binning factor
+	imgfile = glob(filepath.data_cal+'*light*')[0]
+	binning = fits.open(imgfile,uint=False)[0].header['XBINNING']
+	P = pd.read_csv(filepath.calibration+'platescale.csv',index_col=0)
+	pixscale = P['Scale'][binning]
+	
+	#platescale adjustment
+	psa = 2.5*n.log10(pixscale**2) 
+	
+	#brightness calibration
+	for f in glob(filepath.data_cal+'*light*'):
+		image = fits.open(f,uint=False,mode='update')
+		hdr = image[0].header
+		image[0].data = zp + psa - 2.5*n.log10(image[0].data/hdr['EXPTIME'])
+		hdr['history'] = f'Zeropoint used for calibration is {zp}'
+		hdr['history'] = f'Pixel scale used for calibration is {pixscale} "/pix'
+		hdr['history'] = f'Image is processed by {filepath.processor}'
+		image.flush()
+		image.close()

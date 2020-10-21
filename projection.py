@@ -63,13 +63,16 @@ mprojections.register_projection(UpperHammerAxes)
 #------------------------------------------------------------------------------#
 #						  Define Plot settings							   	   #
 #------------------------------------------------------------------------------#
+plt.close('all')
+plt.style.use('dark_background')
+plt.rcParams['image.cmap'] = 'NPS_mag'
+plt.cm.get_cmap().set_bad(color='black')
 
 def fisheye_plot(theta, r, img):
 	"""
 	Plots the input image in a fisheye view. Saves the output as a png image. 
 	"""
-	plt.style.use('dark_background')
-	fig = plt.figure()#figsize=(6,5)) 
+	fig = plt.figure() 
 	ax = plt.subplot(111, projection='polar')
 	ax.pcolormesh(theta,r,img,vmin=14,vmax=24)
 	ax.set_rlim(0,90)
@@ -96,42 +99,21 @@ def hammer_plot(theta,r,img):
 #			  Input files												   	   #
 #------------------------------------------------------------------------------#
 
-#Mask - read in the fisheye mask to find the center of the view
-mask = fits.open(filepath.mask,uint=False)[0].data
-view = n.where(mask==1)
-yc, xc = n.round(n.mean(view,axis=1))	#center of fisheye view
-radius = n.min(n.floor((n.max(view,axis=1)-n.min(view,axis=1))/2)) #view radius
+#Mask - read in the fisheye mask center coordinates and radius
+mask = fits.open(filepath.mask,uint=False)[0].header
+xc, yc, r0 = mask['CENTERX'], mask['CENTERY'], mask['RADIUS']
+X, Y = n.meshgrid(n.arange(-r0,r0),n.arange(-r0,r0))
 
-y = n.arange(mask.shape[0])- yc
-x = n.arange(mask.shape[1])- xc
-X, Y = n.meshgrid(x,y)
-
-r = n.sqrt(X**2+Y**2) / radius
+#Polar coordinates
+r = n.sqrt(X**2+Y**2) / r0
 theta = n.arctan2(Y,X)
 
-y1, x1 = n.max(view,axis=1)
-y0, x0 = n.min(view,axis=1)
-
 for f in glob(filepath.data_cal+'*light*'):
-	img = fits.open(f,uint=False)[0].data 
-	w = n.where(r<0)
-	img[w] = 0#n.nan
-
-
-
-r = r[y0:y1,x0:x1]
-theta = theta[y0:y1,x0:x1]
-img = img[y0:y1,x0:x1]
+	img = fits.open(f,uint=False)[0].data[yc-r0:yc+r0,xc-r0:xc+r0] 
 
 #-----------------------------------------------------------------------------#
 #							Plot the fitting results						  #
 #-----------------------------------------------------------------------------#
-plt.rcParams['image.cmap'] = 'NPS_mag'
-current_cmap = plt.cm.get_cmap()
-current_cmap.set_bad(color='black')
-
-plt.close('all')
-
 #Fisheye takes r in degree
 r_deg = 90*r
 fisheye_plot(theta, r_deg, img)

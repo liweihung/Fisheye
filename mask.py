@@ -94,7 +94,13 @@ print('Best fit x, y, r:', n.round(popt,2))
 #save the bestfit model mask
 mask = bestfitmodel.copy()
 mask[mask==0] = n.nan
-fits.writeto(mi.fileout, mask, overwrite=True)
+hdu = fits.PrimaryHDU()
+hdu.header['CENTERX'] = n.int(popt[0])
+hdu.header['CENTERY'] = n.int(popt[1])
+hdu.header['RADIUS'] = n.int(popt[2])
+hdu.data = mask
+hdu.writeto(mi.fileout, overwrite=True)
+#fits.writeto(mi.fileout, mask, header=hdr, overwrite=True)
 
 #plot
 plt.imshow(flat-bestfitmodel)

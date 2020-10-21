@@ -26,6 +26,7 @@
 # Local Source
 import astrometry
 import filepath
+import median_filter
 import photometric_calibration
 import photometry
 import reduction
@@ -38,5 +39,6 @@ if filepath.measure_reference:
 	photometry.main()
 	
 photometric_calibration.main()
+median_filter.main()
 	
 	

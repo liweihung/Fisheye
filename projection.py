@@ -7,7 +7,8 @@
 #
 #This script 
 #Input: 
-#   (1) 
+#   (1) filepath.mask to get the x,y center and the fisheye view radius
+#	(2) all the processed fisheye images
 #
 #Output:
 #   (1) 
@@ -17,94 +18,134 @@
 #	Li-Wei Hung -- Created 
 #
 #-----------------------------------------------------------------------------#
+import matplotlib.projections as mprojections
 import numpy as n
 
 from astropy.io import fits
+from glob import glob
 from matplotlib import pyplot as plt
+from matplotlib.axes import Axes
+from matplotlib.patches import Wedge
+from matplotlib.projections.geo import HammerAxes
+import matplotlib.spines as mspines
 
+# Local Source
 import colormaps
+import filepath
 
+#------------------------------------------------------------------------------#
+#					  Create Upper Hammer Projection Class				   	   #
+#------------------------------------------------------------------------------#
+class UpperHammerAxes(HammerAxes):
+	name = 'upper_hammer'
+	def cla(self):
+		HammerAxes.cla(self)
+		Axes.set_xlim(self, -n.pi, n.pi)
+		Axes.set_ylim(self, 0, n.pi / 2.0)
+		self.xaxis.set_ticks_position('top')
+		self.tick_params(axis='x', length=0)
+		self.tick_params(colors='darkgray')
+		self.grid(color='gray', linestyle='dotted', linewidth=.5)
+	
+	def _gen_axes_patch(self):
+		return Wedge((0.5, 0.5), 0.5, 0, 180)
+	
+	def _gen_axes_spines(self):
+		pass
+		path = Wedge((0, 0), 1.0, 0, 180).get_path()
+		spine = mspines.Spine(self, 'circle', path)
+		spine.set_color('gray')
+		spine.set_patch_circle((0.5, 0.5), 0.5)
+		return {'wedge':spine}
+		
+mprojections.register_projection(UpperHammerAxes)
 
-#-----------------------------------------------------------------------------#
+#------------------------------------------------------------------------------#
+#						  Define Plot settings							   	   #
+#------------------------------------------------------------------------------#
 
-#-----------------------------------------------------------------------------#
-#-----------------------------------------------------------------------------#
-#			  Input files													  #
-#-----------------------------------------------------------------------------#
-#original image 
-forig = 'Test_Images/20200427/40_sec_V_light_4x4.fit'
-hdu_orig = fits.open(forig, fix=False)[0] #open the original image file
-img = hdu_orig.data
-img_center = [773,1180]
-y = n.arange(img.shape[0])- img_center[0]
-x = n.arange(img.shape[1])- img_center[1]
+def fisheye_plot(theta, r, img):
+	"""
+	Plots the input image in a fisheye view. Saves the output as a png image. 
+	"""
+	plt.style.use('dark_background')
+	fig = plt.figure()#figsize=(6,5)) 
+	ax = plt.subplot(111, projection='polar')
+	ax.pcolormesh(theta,r,img,vmin=14,vmax=24)
+	ax.set_rlim(0,90)
+	ax.set_yticklabels([])
+	ax.tick_params(colors='darkgray')
+	ax.set_theta_zero_location('N') 
+	ax.grid(True, color='gray', linestyle='dotted', linewidth=.5)
+	#plt.savefig('.png', dpi=200)
+	
+	
+def hammer_plot(theta,r,img):
+	"""
+	Plots the input image in Hammer equal area projection. Saves the output as 
+	a png image.
+	"""
+	plt.figure(figsize=(11,3.8))
+	ax = plt.subplot(111, projection="upper_hammer")
+	ax.pcolormesh(theta,r,img,vmin=14,vmax=24)
+	ax.grid(True)
+	#plt.title("Hammer")
+	plt.tight_layout(rect=(0.03,-0.6,0.98,0.97))
+#------------------------------------------------------------------------------#
+#------------------------------------------------------------------------------#
+#			  Input files												   	   #
+#------------------------------------------------------------------------------#
+
+#Mask - read in the fisheye mask to find the center of the view
+mask = fits.open(filepath.mask,uint=False)[0].data
+view = n.where(mask==1)
+yc, xc = n.round(n.mean(view,axis=1))	#center of fisheye view
+radius = n.min(n.floor((n.max(view,axis=1)-n.min(view,axis=1))/2)) #view radius
+
+y = n.arange(mask.shape[0])- yc
+x = n.arange(mask.shape[1])- xc
 X, Y = n.meshgrid(x,y)
-image_radius = 743# [pix]
-r = n.pi/2 - n.sqrt(X**2+Y**2) / image_radius *n.pi/2
+
+r = n.sqrt(X**2+Y**2) / radius
 theta = n.arctan2(Y,X)
 
+y1, x1 = n.max(view,axis=1)
+y0, x0 = n.min(view,axis=1)
 
-y0 = int(img_center[0]-image_radius)
-y1 = int(img_center[0]+image_radius)
-x0 = int(img_center[1]-image_radius)
-x1 = int(img_center[1]+image_radius)
+for f in glob(filepath.data_cal+'*light*'):
+	img = fits.open(f,uint=False)[0].data 
+	w = n.where(r<0)
+	img[w] = 0#n.nan
 
-w = n.where(r<0)
-img[w] = 220#n.nan
+
 
 r = r[y0:y1,x0:x1]
 theta = theta[y0:y1,x0:x1]
 img = img[y0:y1,x0:x1]
 
-img2 = img-209 #arbitrary reduction; bias? dark?
-inds = n.argsort(theta[:,0])
-theta=theta[inds,:]
-r=r[inds,:]
-img=img[inds,:]-209 #arbitrary reduction; bias? dark?
-
-#brightness calibration
-psa = 2.5*n.log10(380**2) # platescale adjustment
-mc = 8.88+psa-2.5*n.log10(img/40)
-mc2 = 8.88+psa-2.5*n.log10(img2/40)
 #-----------------------------------------------------------------------------#
 #							Plot the fitting results						  #
 #-----------------------------------------------------------------------------#
-plt.figure()
 plt.rcParams['image.cmap'] = 'NPS_mag'
 current_cmap = plt.cm.get_cmap()
 current_cmap.set_bad(color='black')
 
-plt.subplot(111, projection="hammer")
-plt.pcolormesh(theta,r,mc,vmin=14,vmax=24)#,norm=norm,cmap=cmap)
-plt.title("Hammer")
-plt.grid(True)
+plt.close('all')
 
-plt.figure()
-plt.imshow(mc2,vmin=14,vmax=24)
+#Fisheye takes r in degree
+r_deg = 90*r
+fisheye_plot(theta, r_deg, img)
 
-plt.colorbar()
+#Hammer plot requires the values to be sorted
+r_str = n.pi/2 - r * n.pi/2
+inds = n.argsort(theta[:,0])
+theta_sorted = theta[inds,:] 
+r_sorted = r_str[inds,:]
+img_sorted = img[inds,:]
+hammer_plot(theta_sorted, r_sorted, img_sorted)
 
-
-#general plot setting
-#cbar = plt.colorbar()
-#cbar.ax.set_ylabel('signal-to-noise ratio')
-#plt.legend(loc='upper right', frameon=False, numpoints=1)
-#plt.xlabel('Airmass')
-#plt.ylabel('M-m')
-#plt.title('Zeropoint and Extinction Coefficient')
-#imgout = 'Plots/zeropoint_and_extinction_fit.png'
-#plt.savefig(imgout, dpi=300)
 plt.show(block=False)
-
-
-#----------------old code below------------------------------------------------#
-#from astropy.coordinates import EarthLocation
-#elev = 1580. #meters
-#location = EarthLocation(lat=lat*u.deg, lon=long*u.deg, height=elev*u.m)
-#c0 = [time.sidereal_time('mean',longitude=long).degree, lat]#[RA,Dec] in degrees
-
-
-
+'''
 #----------------old code below------------------------------------------------#
 
 plt.figure()
@@ -116,3 +157,4 @@ plt.imshow(fits.open(f,uint=False)[0].data,vmin=14,vmax=24)
 plt.colorbar()
 plt.show(block=False)
 
+'''

@@ -28,6 +28,8 @@ from matplotlib.axes import Axes
 from matplotlib.patches import Wedge
 from matplotlib.projections.geo import HammerAxes
 import matplotlib.spines as mspines
+from skimage.transform import rotate
+
 
 # Local Source
 import colormaps
@@ -44,7 +46,7 @@ def fisheye_plot(img):
 	"""
 	fig = plt.figure() 
 	ax = plt.subplot(111, projection='polar')
-	ax.pcolormesh(theta,r_deg,img,vmin=14,vmax=24)
+	ax.pcolormesh(theta_f,r_deg,img,vmin=14,vmax=24)
 	ax.set_rlim(0,90)
 	ax.set_yticklabels([])
 	ax.tick_params(colors='darkgray')
@@ -62,7 +64,6 @@ def hammer_plot(img):
 	ax = plt.subplot(111, projection="upper_hammer")
 	ax.pcolormesh(theta_sorted,r_sorted,img,vmin=14,vmax=24)
 	ax.grid(True)
-	#plt.title("Hammer")
 	plt.tight_layout(rect=(0.03,-0.6,0.98,0.97))
 	plt.savefig(f[:-4]+'_hammer.png')
 
@@ -80,15 +81,17 @@ X, Y = n.meshgrid(n.arange(-r0,r0),n.arange(-r0,r0))
 
 #Polar coordinates
 r = n.sqrt(X**2+Y**2) / r0
-theta = n.arctan2(Y,X)
+theta = -n.arctan2(Y,X)
 
 #Fisheye takes r in degree
-r_deg = 90*r
+r_deg = 90 * r
+theta_f = theta + n.pi/2
 
 #Hammer plot requires the values to be sorted
 r_str = n.pi/2 - r * n.pi/2
 inds = n.argsort(theta[:,0])
 theta_sorted = theta[inds,:] 
+
 r_sorted = r_str[inds,:]
 
 #------------------------------------------------------------------------------#
@@ -97,22 +100,6 @@ r_sorted = r_str[inds,:]
 for f in glob(filepath.data_cal+'*light*.fit'):
 	print(f)
 	img = fits.open(f,uint=False)[0].data[yc-r0:yc+r0,xc-r0:xc+r0] 
-	#fisheye_plot(img)
-	hammer_plot(img[inds,:])
+	fisheye_plot(img)
+	hammer_plot(rotate(img,-90,cval=n.nan)[inds,:])
 
-#plt.show(block=False)
-#plt.savefig(f+'_hammer4.jpg', dpi=300)
-
-'''
-#----------------old code below------------------------------------------------#
-
-plt.figure()
-plt.rcParams['image.cmap'] = 'NPS_mag'
-current_cmap = plt.cm.get_cmap()
-current_cmap.set_bad(color='black')
-plt.imshow(fits.open(f,uint=False)[0].data,vmin=14,vmax=24)
-
-plt.colorbar()
-plt.show(block=False)
-
-'''

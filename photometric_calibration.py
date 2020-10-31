@@ -56,12 +56,15 @@ def main():
 	psa = 2.5*n.log10(pixscale**2) 
 	
 	#brightness calibration
-	for f in glob(filepath.data_cal+'*light*'):
+	for f in glob(filepath.data_cal+'*light*.fit'):
 		image = fits.open(f,uint=False,mode='update')
 		hdr = image[0].header
 		image[0].data = zp + psa - 2.5*n.log10(image[0].data/hdr['EXPTIME'])
 		hdr['history'] = f'Zeropoint used for calibration is {zp}'
 		hdr['history'] = f'Pixel scale used for calibration is {pixscale} "/pix'
-		hdr['history'] = f'Image is processed by {filepath.processor}'
 		image.flush()
 		image.close()
+		
+						 
+if __name__ == '__main__':
+	main()

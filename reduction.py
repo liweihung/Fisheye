@@ -80,7 +80,7 @@ def main():
 	for k in flatfile.keys(): 							#loop through filters
 		try: 
 			flat = fits.open(filepath.calibration+flatfile[k],uint=0)[0].data
-		except: pass
+		except: continue
 		for f in glob(filepath.data_raw+f'*{k}_light*'):
 			image  = fits.open(f,uint=False)[0]
 			light  = image.data 						#science image
@@ -88,10 +88,14 @@ def main():
 			light -= bias								#subtract bias
 			light *= n.interp(light,xp,fp)				#correct for linearity
 			light -= dark								#subtract dark
-			light /= flat							#divide by flat
+			light /= flat								#divide by flat
 			hdr = image.header
 			hdr['history'] = f'Linearity curve used is {filepath.fn_linearity}'
 			hdr['history'] = f'Flat used is {flatfile[k]}'
 			hdr['history'] = f'Mask used is {filepath.fn_mask}'			
 			fits.writeto(filepath.data_cal+f[len(filepath.data_raw):],light,
 						 header=hdr,overwrite=1)
+
+						 
+if __name__ == '__main__':
+	main()

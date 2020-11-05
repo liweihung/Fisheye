@@ -3,7 +3,7 @@
 #
 #NPS Night Skies Program
 #
-#Last updated: 2020/10/08
+#Last updated: 2020/11/04
 #
 #This script performs basic image reduction and applies mask on the fisheye 
 #image data collected by the NPS Night Skies Program. The script corrects for:
@@ -78,17 +78,22 @@ def main():
 	
 	#Calibration - calibrate the science images
 	for k in flatfile.keys(): 							#loop through filters
+		
 		try: 
 			flat = fits.open(filepath.calibration+flatfile[k],uint=0)[0].data
 		except: continue
+		
 		for f in glob(filepath.data_raw+f'*{k}_light*'):
+		
 			image  = fits.open(f,uint=False)[0]
-			light  = image.data 						#science image
-			light *= mask								#apply fisheye mask
-			light -= bias								#subtract bias
-			light *= n.interp(light,xp,fp)				#correct for linearity
-			light -= dark								#subtract dark
-			light /= flat								#divide by flat
+			light  = image.data 					#science image
+			light *= mask							#apply fisheye mask
+			light -= bias							#subtract bias
+			light *= n.interp(light,xp,fp)			#correct for linearity
+			light -= dark							#subtract dark
+			light  = n.clip(light,0.1,n.inf)			#replace negatives w/ 1
+			light /= flat							#divide by flat
+			
 			hdr = image.header
 			hdr['history'] = f'Linearity curve used is {filepath.fn_linearity}'
 			hdr['history'] = f'Flat used is {flatfile[k]}'

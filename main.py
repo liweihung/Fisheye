@@ -25,6 +25,7 @@
 
 # Local Source
 import astrometry
+import centering
 import filepath
 import median_filter
 import photometric_calibration
@@ -39,6 +40,8 @@ if filepath.measure_reference:
 	photometry.main()
 	
 photometric_calibration.main()
+centering.main()
 median_filter.main()
+
 	
 	

@@ -3,33 +3,28 @@
 #
 #NPS Night Skies Program
 #
-#Last updated: 2020/07/22
+#Last updated: 2020/11/05
 #
-#This script 
+#This script plots the fits images in fisheye and Hammer projections. 
+#
 #Input: 
 #   (1) filepath.mask to get the x,y center and the fisheye view radius
-#	(2) all the processed fisheye images
+#	(2) all the processed fisheye fit images
 #
 #Output:
-#   (1) 
-#   (2) 
+#   (1) *fisheye.png
+#   (2) *hammer.png
 #
 #History:
 #	Li-Wei Hung -- Created 
 #
 #------------------------------------------------------------------------------#
-import matplotlib.projections as mprojections
 import numpy as n
 
 from astropy.io import fits
 from glob import glob
 from matplotlib import pyplot as plt
-from matplotlib.axes import Axes
-from matplotlib.patches import Wedge
-from matplotlib.projections.geo import HammerAxes
-import matplotlib.spines as mspines
 from skimage.transform import rotate
-
 
 # Local Source
 import colormaps
@@ -37,69 +32,76 @@ import filepath
 import upper_hammer
 
 #------------------------------------------------------------------------------#
-#------------------------------------------------------------------------------#
-#						  Define Plot settings							   	   #
-#------------------------------------------------------------------------------#
-def fisheye_plot(img):
+def main():
 	"""
-	Plots the input image in a fisheye view. Saves the output as a png image. 
+	This script plots fits images in fisheye and Hammer projection. See the 
+	script description for detail.
 	"""
-	fig = plt.figure() 
-	ax = plt.subplot(111, projection='polar')
-	ax.pcolormesh(theta_f,r_deg,img,vmin=14,vmax=24)
-	ax.set_rlim(0,90)
-	ax.set_yticklabels([])
-	ax.tick_params(colors='darkgray')
-	ax.set_theta_zero_location('N') 
-	ax.grid(True, color='gray', linestyle='dotted', linewidth=.5)
-	plt.savefig(f[:-4]+'_fisheye.png', dpi=300)
+	#--------------------------------------------------------------------------#
+	#						  Generate Polar Coordinates				   	   #
+	#--------------------------------------------------------------------------#
+	#Mask - read in the fisheye mask center coordinates and radius
+	mask = fits.open(filepath.mask,uint=False)[0].header
+	xc, yc, r0 = mask['CENTERX'], mask['CENTERY'], mask['RADIUS']
+	X, Y = n.meshgrid(n.arange(-r0,r0),n.arange(-r0,r0))
+	
+	#Polar coordinates
+	r = n.sqrt(X**2+Y**2) / r0
+	theta = -n.arctan2(Y,X)
+	
+	#Fisheye takes r in degree
+	r_deg = 90 * r
+	theta_f = theta + n.pi/2
+	
+	#Hammer plot requires the values to be sorted
+	r_str = n.pi/2 - r * n.pi/2
+	inds = n.argsort(theta[:,0])
+	theta_sorted = theta[inds,:] 
+	r_sorted = r_str[inds,:]
 	
 	
-def hammer_plot(img):
-	"""
-	Plots the input image in Hammer equal area projection. Saves the output as 
-	a png image.
-	"""
-	plt.figure(figsize=(15,5.2))
-	ax = plt.subplot(111, projection="upper_hammer")
-	ax.pcolormesh(theta_sorted,r_sorted,img,vmin=14,vmax=24)
-	ax.grid(True)
-	plt.tight_layout(rect=(0.03,-0.6,0.98,0.97))
-	plt.savefig(f[:-4]+'_hammer.png')
+	#--------------------------------------------------------------------------#
+	#						  Define Plot settings						   	   #
+	#--------------------------------------------------------------------------#
+	#General plot settings
+	plt.close('all')
+	plt.style.use('dark_background')
+	plt.rcParams['image.cmap'] = 'NPS_mag'
+	plt.cm.get_cmap().set_bad(color='black')
+	
+	#Fisheye plot setting
+	fig0 = plt.figure('fisheye') 
+	ax0 = fig0.add_subplot(111, projection='polar')
+	ax0.set_rlim(0,90)
+	ax0.set_yticklabels([])
+	ax0.tick_params(colors='darkgray')
+	ax0.set_theta_zero_location('N') 
+	ax0.grid(True, color='gray', linestyle='dotted', linewidth=.5)
+	
+	#Hammer plot setting
+	fig1 = plt.figure('hammer',figsize=(15,5.2))
+	ax1 = fig1.add_subplot(111, projection="upper_hammer")
+	ax1.grid(True)
+	fig1.tight_layout(rect=(0.03,-0.6,0.98,0.97))
+	
+	
+	#--------------------------------------------------------------------------#
+	#				Plot the image in fisheye and Hammer projections		   #
+	#--------------------------------------------------------------------------#
+	for i, f in enumerate(glob(filepath.data_cal+'*light*.fit')):
+		print(f"projecting image {i}")
+		img = fits.open(f,uint=False)[0].data[yc-r0:yc+r0,xc-r0:xc+r0] 
+		img_hammer = rotate(img,-90,cval=n.nan)[inds,:]
+		
+		#plot fisheye
+		ax0.pcolormesh(theta_f,r_deg,img,vmin=14,vmax=24)
+		fig0.savefig(f[:-4]+'_fisheye.png', dpi=300)
+		
+		#plot hammer
+		ax1.pcolormesh(theta_sorted,r_sorted,img_hammer,vmin=14,vmax=24)
+		fig1.savefig(f[:-4]+'_hammer.png')
 
 
-#General plot settings
-plt.close('all')
-plt.style.use('dark_background')
-plt.rcParams['image.cmap'] = 'NPS_mag'
-plt.cm.get_cmap().set_bad(color='black')	
-
-#Mask - read in the fisheye mask center coordinates and radius
-mask = fits.open(filepath.mask,uint=False)[0].header
-xc, yc, r0 = mask['CENTERX'], mask['CENTERY'], mask['RADIUS']
-X, Y = n.meshgrid(n.arange(-r0,r0),n.arange(-r0,r0))
-
-#Polar coordinates
-r = n.sqrt(X**2+Y**2) / r0
-theta = -n.arctan2(Y,X)
-
-#Fisheye takes r in degree
-r_deg = 90 * r
-theta_f = theta + n.pi/2
-
-#Hammer plot requires the values to be sorted
-r_str = n.pi/2 - r * n.pi/2
-inds = n.argsort(theta[:,0])
-theta_sorted = theta[inds,:] 
-
-r_sorted = r_str[inds,:]
-
-#------------------------------------------------------------------------------#
-#				Plot the image in fisheye and Hammer projections			   #
-#------------------------------------------------------------------------------#
-for f in glob(filepath.data_cal+'*light*.fit'):
-	print(f)
-	img = fits.open(f,uint=False)[0].data[yc-r0:yc+r0,xc-r0:xc+r0] 
-	fisheye_plot(img)
-	hammer_plot(rotate(img,-90,cval=n.nan)[inds,:])
-
+if __name__ == '__main__':
+	main()
+	

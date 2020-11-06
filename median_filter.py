@@ -45,7 +45,7 @@ def main():
 	
 	#Median filter all the fisheye images
 	l = len(filepath.data_cal)
-	for f in glob(filepath.data_cal+'[!MF]*light*'):
+	for f in glob(filepath.data_cal+'[!MF]*light*.fit'):
 		image = fits.open(f,uint=False)
 		hdr = image[0].header
 		filtered_img = median_filter(image[0].data, size=w)

@@ -83,7 +83,7 @@ def main():
 			flat = fits.open(filepath.calibration+flatfile[k],uint=0)[0].data
 		except: continue
 		
-		for f in glob(filepath.data_raw+f'*{k}_light*'):
+		for f in glob(filepath.data_raw+f'*sky-{k}.fit'):
 		
 			image  = fits.open(f,uint=False)[0]
 			light  = image.data 					#science image

@@ -35,7 +35,7 @@ def main():
 	description for detail.
 	"""
 	#read in the pixel scale associated with the binning factor
-	imgfile = glob(filepath.data_cal+'*light*')[0]
+	imgfile = glob(filepath.data_cal+'*sky*')[0]
 	binning = fits.open(imgfile,uint=False)[0].header['XBINNING']
 	P = pd.read_csv(filepath.calibration+'platescale.csv',index_col=0)
 	pixscale = P['Scale'][binning] #[arcsec/pix]
@@ -45,7 +45,7 @@ def main():
 	
 	#Median filter all the fisheye images
 	l = len(filepath.data_cal)
-	for f in glob(filepath.data_cal+'[!MF]*light*.fit'):
+	for f in glob(filepath.data_cal+'[!MF]*sky*.fit'):
 		image = fits.open(f,uint=False)
 		hdr = image[0].header
 		filtered_img = median_filter(image[0].data, size=w)

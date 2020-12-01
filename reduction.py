@@ -56,14 +56,14 @@ def main():
 	#Bias - generate averaged bias 
 	biaslist = [
 		fits.open(i,uint=False)[0].data 
-		for i in glob(filepath.data_raw+'*bias*.fit')]
+		for i in glob(filepath.data_raw+'*bias.fit')]
 	bias = n.average(biaslist,axis=0)
 	
 	
 	#Dark - average dark is bias subtracted and linearity response corrected
 	darklist = [
 		fits.open(i,uint=False)[0].data 
-		for i in glob(filepath.data_raw+'*dark*.fit')]
+		for i in glob(filepath.data_raw+'*dark.fit')]
 	dark_bias_subtracted = n.average(darklist,axis=0)-bias     
 	dark = dark_bias_subtracted * n.interp(dark_bias_subtracted,xp,fp) 
 	
@@ -91,7 +91,7 @@ def main():
 			light -= bias							#subtract bias
 			light *= n.interp(light,xp,fp)			#correct for linearity
 			light -= dark							#subtract dark
-			light  = n.clip(light,0.1,n.inf)			#replace negatives w/ 1
+			light  = n.clip(light,0.1,n.inf)		#replace negatives w/ 1
 			light /= flat							#divide by flat
 			
 			hdr = image.header

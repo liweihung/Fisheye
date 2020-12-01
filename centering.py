@@ -70,7 +70,7 @@ def main():
 	xc, yc = mask['CENTERX'], mask['CENTERY']
 	
 	#Position calibration
-	for f in glob(filepath.data_cal+'*light*.fit'):
+	for f in glob(filepath.data_cal+'*sky*.fit'):
 		image = fits.open(f,uint=False,mode='update')
 		
 		#correct for fisheye lens distorsion - need to be implemented

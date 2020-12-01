@@ -1,5 +1,5 @@
 #Datasets
-datanight = 'PNGL20200427'
+datanight = 'PNGL_20200427A'
 lat, long = 40.696034, -104.600301 #observing location [degree]
 camera = 'Fish1'
 fn_linearity = 'ASI_6200_Linearity.txt'
@@ -13,7 +13,7 @@ processor = 'L_Hung'
 
 #Measure zeropoint, extinction coefficient, and center on the reference image?
 measure_reference = False				#[True/False]Slove the reference image?
-reference = '40_sec_V_light_4x4.fit'	#Reference image
+reference = 'img-001-sky-V.fit'			#Reference image
 apikey = 'cllxijkpvxsibace' 			#Astrometry API key
 
 #File folders

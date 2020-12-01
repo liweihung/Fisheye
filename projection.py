@@ -88,7 +88,7 @@ def main():
 	#--------------------------------------------------------------------------#
 	#				Plot the image in fisheye and Hammer projections		   #
 	#--------------------------------------------------------------------------#
-	for i, f in enumerate(glob(filepath.data_cal+'*light*.fit')):
+	for i, f in enumerate(glob(filepath.data_cal+'*sky*.fit')):
 		print(f"projecting image {i}")
 		img = fits.open(f,uint=False)[0].data[yc-r0:yc+r0,xc-r0:xc+r0] 
 		img_hammer = rotate(img,-90,cval=n.nan)[inds,:]

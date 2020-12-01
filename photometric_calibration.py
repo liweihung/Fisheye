@@ -47,7 +47,7 @@ def main():
 		zp = Z['Zeropoint'].mean()
 		
 	#read in the pixel scale associated with the binning factor
-	imgfile = glob(filepath.data_cal+'*light*')[0]
+	imgfile = glob(filepath.data_cal+'*sky*')[0]
 	binning = fits.open(imgfile,uint=False)[0].header['XBINNING']
 	P = pd.read_csv(filepath.calibration+'platescale.csv',index_col=0)
 	pixscale = P['Scale'][binning]
@@ -56,7 +56,7 @@ def main():
 	psa = 2.5*n.log10(pixscale**2) 
 	
 	#brightness calibration
-	for f in glob(filepath.data_cal+'*light*.fit'):
+	for f in glob(filepath.data_cal+'*sky*.fit'):
 		image = fits.open(f,uint=False,mode='update')
 		hdr = image[0].header
 		image[0].data = zp + psa - 2.5*n.log10(image[0].data/hdr['EXPTIME'])

@@ -76,12 +76,10 @@ def main():
 	ax0.set_yticklabels([])
 	ax0.tick_params(colors='darkgray')
 	ax0.set_theta_zero_location('N') 
-	ax0.grid(True, color='gray', linestyle='dotted', linewidth=.5)
 	
 	#Hammer plot setting
 	fig1 = plt.figure('hammer',figsize=(15,5.2))
 	ax1 = fig1.add_subplot(111, projection="upper_hammer")
-	ax1.grid(True)
 	fig1.tight_layout(rect=(0.03,-0.6,0.98,0.97))
 	
 	
@@ -95,13 +93,14 @@ def main():
 		
 		#plot fisheye
 		ax0.pcolormesh(theta_f,r_deg,img,vmin=14,vmax=24)
+		ax0.grid(True, color='gray', linestyle='dotted', linewidth=.5)
 		fig0.savefig(f[:-4]+'_fisheye.png', dpi=300)
 		
 		#plot hammer
 		ax1.pcolormesh(theta_sorted,r_sorted,img_hammer,vmin=14,vmax=24)
+		ax1.grid(True)
 		fig1.savefig(f[:-4]+'_hammer.png')
 
 
 if __name__ == '__main__':
-	main()
-	
+	main()	

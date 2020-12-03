@@ -19,7 +19,10 @@
 #	Li-Wei Hung -- Created 
 #
 #------------------------------------------------------------------------------#
+import copy
+import matplotlib as mpl
 import numpy as n
+import warnings
 
 from astropy.io import fits
 from glob import glob
@@ -56,8 +59,8 @@ def main():
 	#Hammer plot requires the values to be sorted
 	r_str = n.pi/2 - r * n.pi/2
 	inds = n.argsort(theta[:,0])
-	theta_sorted = theta[inds,:] 
-	r_sorted = r_str[inds,:]
+	theta_s = theta[inds,:] 
+	r_s = r_str[inds,:]
 	
 	
 	#--------------------------------------------------------------------------#
@@ -67,7 +70,8 @@ def main():
 	plt.close('all')
 	plt.style.use('dark_background')
 	plt.rcParams['image.cmap'] = 'NPS_mag'
-	plt.cm.get_cmap().set_bad(color='black')
+	cmap = copy.copy(mpl.cm.get_cmap("NPS_mag"))
+	cmap.set_bad(color='black')
 	
 	#Fisheye plot setting
 	fig0 = plt.figure('fisheye') 
@@ -82,22 +86,24 @@ def main():
 	ax1 = fig1.add_subplot(111, projection="upper_hammer")
 	fig1.tight_layout(rect=(0.03,-0.6,0.98,0.97))
 	
-	
+	#Suppressing a MatPlotLib benign warning about pcolormesh shading
+	warnings.filterwarnings("ignore",category=UserWarning)
+
 	#--------------------------------------------------------------------------#
 	#				Plot the image in fisheye and Hammer projections		   #
 	#--------------------------------------------------------------------------#
 	for i, f in enumerate(glob(filepath.data_cal+'*sky*.fit')):
 		print(f"projecting image {i}")
 		img = fits.open(f,uint=False)[0].data[yc-r0:yc+r0,xc-r0:xc+r0] 
-		img_hammer = rotate(img,-90,cval=n.nan)[inds,:]
+		img_hammer = rotate(img.astype('float32'),-90,cval=n.nan)[inds,:]
 		
 		#plot fisheye
-		ax0.pcolormesh(theta_f,r_deg,img,vmin=14,vmax=24)
+		ax0.pcolormesh(theta_f,r_deg,img,shading='auto',vmin=14,vmax=24)
 		ax0.grid(True, color='gray', linestyle='dotted', linewidth=.5)
 		fig0.savefig(f[:-4]+'_fisheye.png', dpi=300)
 		
 		#plot hammer
-		ax1.pcolormesh(theta_sorted,r_sorted,img_hammer,vmin=14,vmax=24)
+		ax1.pcolormesh(theta_s,r_s,img_hammer,shading='auto',vmin=14,vmax=24)
 		ax1.grid(True)
 		fig1.savefig(f[:-4]+'_hammer.png')
 

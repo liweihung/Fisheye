@@ -20,9 +20,10 @@
 #	Li-Wei Hung -- Created
 #
 #-----------------------------------------------------------------------------#
-import matplotlib
 import matplotlib.pyplot as plt
 import numpy as n
+
+from matplotlib.colors import LinearSegmentedColormap 
 
 # Local Source
 #import filepath  
@@ -54,7 +55,7 @@ for i in range(len(mag_start)):
 cdict = {'red':red,'green':green,'blue':blue}
 
 #register the color map
-plt.register_cmap(name='NPS_mag', data=cdict)
+plt.register_cmap(cmap=LinearSegmentedColormap('NPS_mag',cdict))
 
 if __name__ == '__main__':
     plt.rcParams['image.cmap'] = 'NPS_mag'

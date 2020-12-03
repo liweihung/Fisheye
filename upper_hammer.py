@@ -87,7 +87,7 @@ class UpperHammerAxes(HammerAxes):
 		class -- it provides a more convenient interface to set the
 		ticking than set_xticks would.
 		"""
-		grid = n.linspace(-180, 180, 360/degrees+1)
+		grid = n.linspace(-180, 180, int(360/degrees+1))
 		self.xaxis.set_major_locator(FixedLocator(n.deg2rad(grid)))
 		self.xaxis.set_major_formatter(self.ThetaFormatter(degrees))
 	
@@ -97,7 +97,7 @@ mprojections.register_projection(UpperHammerAxes)
 if __name__ == '__main__':
 	import matplotlib.pyplot as plt
 	#plt.close('all')
-	fig = plt.figure(figsize=(15,5.2))
+	fig = plt.figure(figsize=(15,5))
 	ax = fig.add_subplot(111, projection='upper_hammer')
 	ax.grid(True)
 	plt.tight_layout(rect=(0.03,-0.6,0.98,0.97))

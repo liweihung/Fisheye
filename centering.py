@@ -80,7 +80,8 @@ def main():
 		pass
 		
 		#correct for orientation; put north up
-		image[0].data = rotate(image[0].data,ori,center=(xc,yc),mode='edge')
+		imgdata = image[0].data.astype('float32')
+		image[0].data = rotate(imgdata,ori,center=(xc,yc),mode='edge')
 		image[0].header['history']=f'Image is rotated by {ori} degrees'	
 		image[0].header['history']=f'Image is processed by {filepath.processor}'
 		

@@ -3,107 +3,61 @@
 #
 #NPS Night Skies Program
 #
-#Last updated: 2020/10/07
+#Last updated: 2020/12/17
 #
-#This script fit a circle to the image to find out where the fisheye view is 
-#located. 
+#This script finds a circle to describe where the fisheye view is located. 
 #
 #Input: 
 #   (1) mask_input.py, containing a flat image or an image with fisheye viewing 
-#		area well lit and fitting parameters
+#		area well lit and the brightness cutoff.
 #
 #Output:
-#   (1) The best fit model image of a circular mask
+#   (1) Image of a circular mask
 #
 #History:
 #	Li-Wei Hung -- Created 
 #
 #------------------------------------------------------------------------------#
+import importlib
 import numpy as n
 
 from astropy.io import fits
 from matplotlib import pyplot as plt
-from scipy.optimize import leastsq
-   
+
 # Local Source
 import mask_input as mi
-#-----------------------------------------------------------------------------#
-	
-def circlemodel(xc, yc, rc, imgshape):
-	'''
-	This module returns the modeled image of a solid-filled circle given the 
-	center coordinates, the radius of the circle, and the overall image shape.
-	
-	Parameters
-	----------
-	xc : a number
-		X center of the circle.
-	yc : a number
-		Y center of the circle.
-	rc : a number
-		radius of the circle.
-	imgshape : list or tuple of numbers
-		shape of the overall image.		
-		
-	Returns
-	-------
-	model : 2D array
-		Model image of a solid circle.   
-	'''
-	x, y = n.meshgrid(n.arange(imgshape[1]),n.arange(imgshape[0]))
-	r = n.sqrt((x-xc)**2 + (y-yc)**2)
-	model = n.zeros_like(r)
-	model[n.where(r<=rc)] = 1
-	return model
-	
 
-def errorfunction(xyr, img):
-	'''
-	This module computes the pixelwise difference a modeled circled imgage and 
-	the input image. 
-	
-	Parameters
-	----------
-	xyr : list of numbers
-		X center, y center, and radius in pixels of the circle.
-	img : 2D array
-		Input image for fitting; usually a flatfield image.  
-		
-	Returns
-	-------
-	delta : list of numbers
-		Difference between model and image for each pixel.
-	'''
-	model = circlemodel(*xyr, img.shape)
-	delta = abs(model-img).ravel()
-	print(n.sum(delta, dtype=int), xyr)
-	return delta
-	
+importlib.reload(mi)
 #-----------------------------------------------------------------------------#
 
-#Readin the file and assign light and dark pixels
+#Read in the file and the light pixels
 flat = fits.open(mi.filein,uint=False)[0].data
-flat[n.where(flat>mi.t)] = 1
-flat[n.where(flat<=mi.t)] = 0
+bright = n.where(flat>mi.t) #location of bright pixels
 
-#fit to a circle
-popt = leastsq(errorfunction, mi.p0, args=(flat), epsfcn=mi.s)[0]
-bestfitmodel = circlemodel(*popt, flat.shape)
-print('Best fit x, y, r:', n.round(popt,2))
+#Find the xy center and the radius 
+center_y , center_x = n.mean(bright,axis=1)
+radius = n.min(n.percentile(bright,99.99,axis=1) - n.mean(bright,axis=1))
+
+#Creat the mask image
+x, y = n.meshgrid(n.arange(flat.shape[1]),n.arange(flat.shape[0]))
+r = n.sqrt((x-center_x)**2 + (y-center_y)**2)
+mask = n.zeros_like(r)
+mask[n.where(r<=radius)] = 1
+mask[n.where(mask==0)] = n.nan
 
 #save the bestfit model mask
-mask = bestfitmodel.copy()
-mask[mask==0] = n.nan
 hdu = fits.PrimaryHDU()
-hdu.header['CENTERX'] = n.int(popt[0])
-hdu.header['CENTERY'] = n.int(popt[1])
-hdu.header['RADIUS'] = n.int(popt[2])
+hdu.header['CENTERX'] = center_x
+hdu.header['CENTERY'] = center_y
+hdu.header['RADIUS'] = radius
 hdu.data = mask
 hdu.writeto(mi.fileout, overwrite=True)
-#fits.writeto(mi.fileout, mask, header=hdr, overwrite=True)
 
 #plot
-plt.imshow(flat-bestfitmodel)
+fig = plt.figure(1)
+maskplot = n.zeros_like(mask)
+maskplot[n.where(mask==1)]=n.nan
+plt.imshow(flat-maskplot)
 plt.show(block=False)
 
 

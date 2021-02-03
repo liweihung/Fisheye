@@ -3,7 +3,7 @@
 #
 #NPS Night Skies Program
 #
-#Last updated: 2020/10/14
+#Last updated: 2021/01/27
 #
 #This script finds the bestfit zeropoint and extinction coefficient. The script
 #first matches the detected stars in the image to a list of standard stars. The
@@ -17,12 +17,12 @@
 #Input: 
 #   (1) 'hipparcos_bright_standards_vmag6.txt' -- Standard star catalog
 #	(2) 'detected_stars.csv' -- Detected stars from astrometry.net
-#	(3) filepath.data_cal+filepath.reference -- reference fisheye image
+#	(3) p.data_cal+p.reference -- reference fisheye image
 #	(4) observing latitude and longitude.
 #
 #Output:
-#   (1) filepath_data_cal+'zeropoint.png'
-#   (2) filepath_data_cal+'zeropoint.csv'
+#   (1) p.data_cal+'zeropoint.png'
+#   (2) p.data_cal+'zeropoint.csv'
 #
 #History:
 #	Li-Wei Hung -- Created 
@@ -40,7 +40,7 @@ from sklearn.linear_model import (
      TheilSenRegressor, RANSACRegressor, HuberRegressor)
 
 # Local Source
-import filepath
+import process_input as p     
 from sphericalgeometry import DistanceAndBearing
 
 #-----------------------------------------------------------------------------#
@@ -276,7 +276,7 @@ def fit_zeropoint_and_extinction(df, selection=True, dp=1, sig=2, snr=5, z=1):
 	bestfit = {'OLS':[param[1], param[0]]}
 
 	for name, estimator in estimators:
-		estimator.fit(df.Airmass[:, n.newaxis], df.Vmag-df.m)
+		estimator.fit(df.Airmass.values[:, n.newaxis], df.Vmag-df.m)
 		if name == 'RANSAC':
 			bestfit[name] = [estimator.estimator_.intercept_, 
 							  estimator.estimator_.coef_[0]]
@@ -290,13 +290,13 @@ def main():
 	"""
 	This script performs Gaussian PSF photometry and fit for the photometric 
 	zeropoint and extinction coefficient. See the script description for detail.
-	All the inputs are defined and passed through filepath.
+	All the inputs are defined and passed through process_input.
 	"""
 	#--------------------------------------------------------------------------#
 	#		   Merge the standard star and detected star lists				   #
 	#--------------------------------------------------------------------------#
-	fstd = filepath.calibration+'hipparcos_bright_standards_vmag6.txt' #standard 
-	fcor = filepath.data_cal+'detected_stars.csv'  #detected from astrometry.net
+	fstd = p.calibration+'hipparcos_bright_standards_vmag6.txt' #standard 
+	fcor = p.data_cal+'detected_stars.csv'  #detected from astrometry.net
 
 	H, C, T = match_stars(fstd, fcor)
 
@@ -304,9 +304,9 @@ def main():
 	#						Zenith angle and airmass 						   #
 	#--------------------------------------------------------------------------#
 	#Open the original image and get the observing time and location
-	hdu_orig = fits.open(filepath.data_cal+filepath.reference, fix=False)[0] 
+	hdu_orig = fits.open(p.data_cal+p.reference, fix=False)[0] 
 	time = Time(hdu_orig.header['DATE-OBS'])  	#UTC observing date and time
-	lat, long = filepath.lat, filepath.long 	#degrees
+	lat, long = p.lat, p.long 	#degrees
 	
 	#Zenith RA and Dec: compute based on the observing location and time
 	T['ZA'], T['Airmass'] = compute_za_airmass(time, lat, long, T.RA, T.DE)
@@ -329,7 +329,7 @@ def main():
 	#save the bestfit to a file
 	F = pd.DataFrame.from_dict(bestfit, orient='index')
 	F.columns=['Zeropoint','Extinction']
-	F.to_csv(filepath.data_cal+'zeropoint.csv')
+	F.to_csv(p.data_cal+'zeropoint.csv')
 		
 	#--------------------------------------------------------------------------#
 	#						Plot the fitting results						   #
@@ -364,7 +364,7 @@ def main():
 	plt.xlabel('Airmass')
 	plt.ylabel('M-m')
 	plt.title('Zeropoint and Extinction Coefficient')
-	imgout = filepath.data_cal+'zeropoint.png'
+	imgout = p.data_cal+'zeropoint.png'
 	plt.savefig(imgout, dpi=300)
 	plt.show(block=False)
 

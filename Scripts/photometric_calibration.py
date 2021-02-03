@@ -3,7 +3,7 @@
 #
 #NPS Night Skies Program
 #
-#Last updated: 2020/10/15
+#Last updated: 2022/02/02
 #
 #This script performs absolute photometric calibration using the image pixel 
 #scale and the instrumental zeropoint. This script convers the image from 
@@ -28,7 +28,7 @@ from astropy.io import fits
 from glob import glob
 
 # Local Source
-import filepath
+import process_input as p 
 
 #-----------------------------------------------------------------------------#
 
@@ -39,24 +39,24 @@ def main():
 	"""
 	
 	#read in the zeropoint
-	if filepath.use_default_zeropoint:	#use the default value
-		Z = pd.read_csv(filepath.calibration+'zeropoint.csv',index_col=0)
-		zp = Z['Zeropoint'][filepath.camera]
+	if p.use_default_zeropoint:	#use the default value
+		Z = pd.read_csv(p.calibration+'zeropoint.csv',index_col=0)
+		zp = Z['Zeropoint'][p.camera]
 	else:								#use the measured value from the dataset
-		Z = pd.read_csv(filepath.data_cal+'zeropoint.csv')
+		Z = pd.read_csv(p.data_cal+'zeropoint.csv')
 		zp = Z['Zeropoint'].mean()
 		
 	#read in the pixel scale associated with the binning factor
-	imgfile = glob(filepath.data_cal+'*sky*')[0]
+	imgfile = glob(p.data_cal+'*sky*')[0]
 	binning = fits.open(imgfile,uint=False)[0].header['XBINNING']
-	P = pd.read_csv(filepath.calibration+'platescale.csv',index_col=0)
-	pixscale = P['Scale'][binning]
+	P = pd.read_csv(p.calibration+'platescale.csv',index_col=0)
+	pixscale = P['Scale'][binning] #["/pix]
 	
 	#platescale adjustment
 	psa = 2.5*n.log10(pixscale**2) 
 	
 	#brightness calibration
-	for f in glob(filepath.data_cal+'*sky*.fit'):
+	for f in glob(p.data_cal+'*sky*.fit'):
 		image = fits.open(f,uint=False,mode='update')
 		hdr = image[0].header
 		image[0].data = zp + psa - 2.5*n.log10(image[0].data/hdr['EXPTIME'])

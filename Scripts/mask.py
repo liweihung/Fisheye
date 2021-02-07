@@ -47,6 +47,7 @@ mask[n.where(mask==0)] = n.nan
 
 #save the bestfit model mask
 hdu = fits.PrimaryHDU()
+hdu.header['THRESHOL'] = mi.t
 hdu.header['CENTERX'] = center_x
 hdu.header['CENTERY'] = center_y
 hdu.header['RADIUS'] = radius

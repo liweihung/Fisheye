@@ -76,12 +76,12 @@ def main():
 			fits.writeto(fn, crop, overwrite=True)
 			
 			#solve and astrometry; see "python client.py -help"
-			cmd = f"python client.py -k {p.apikey} \
-									--upload {fn} \
+			cmd = f'python client.py -k {p.apikey} \
+									--upload "{fn}" \
 									--parity 1 \
 									--scale-est {scale} \
-									--corr {fn[:-4]}_corr.fit \
-									--calibrate {fn[:-4]}_calib.txt"
+									--corr "{fn[:-4]}_corr.fit" \
+									--calibrate "{fn[:-4]}_calib.txt"'
 
 			t1 = datetime.now()
 			os.system(cmd)

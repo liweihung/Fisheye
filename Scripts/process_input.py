@@ -5,9 +5,9 @@ camera = 'Fish1'
 processor = 'L_Hung'
 
 #Folders
-calibration = 'c:/users/lhung/Research/Fisheye/Calibration/'
-data_cal = 'c:/users/lhung/Research/Fisheye/Data_processed/'+datanight+'/'
-data_raw = 'c:/users/lhung/Research/Fisheye/Data_raw/'+datanight+'/'
+calibration = '../Calibration/'
+data_cal = '../Data_processed/'+datanight+'/'
+data_raw = '../Data_raw/'+datanight+'/'
 
 #Calibration files
 linearity = calibration + 'ASI_6200_Linearity.txt'

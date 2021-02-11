@@ -1,0 +1,11 @@
+Calibration/
+Data_processed/
+Data_raw/
+Observing/
+Performance/
+Reference/
+Scripts/__pycache__/
+Scripts/test.txt
+Software/
+Workshop/
+__pycache__/

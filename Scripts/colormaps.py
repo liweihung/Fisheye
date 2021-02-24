@@ -26,13 +26,13 @@ import numpy as n
 from matplotlib.colors import LinearSegmentedColormap 
 
 # Local Source
-#import filepath  
+import process_input as p 
 
 #-----------------------------------------------------------------------------#
 
 #RGB values originally from magnitudes.lyr
 #colormap_file = filepath+'colormap_magnitudeslyr.txt'
-colormap_file = 'c:/users/lhung/data/rasters/'+'colormap_magnitudeslyr.txt'
+colormap_file = p.calibration+'colormap_magnitudeslyr.txt'
 mag_start, mag_end, R, G, B = n.loadtxt(colormap_file).T    #RGB in 0-255 scale 
 
 #color positions in 0-1 scale

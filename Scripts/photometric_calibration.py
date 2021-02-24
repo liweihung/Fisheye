@@ -6,7 +6,7 @@
 #Last updated: 2022/02/02
 #
 #This script performs absolute photometric calibration using the image pixel 
-#scale and the instrumental zeropoint. This script convers the image from 
+#scale and the instrumental zeropoint. This script converts the image from 
 #ADU/sec to magnitude per square arcsec. 
 #  
 #Input: 

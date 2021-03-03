@@ -17,11 +17,11 @@ mask      = calibration + 'Sigma_3.5_Master_Flat_mask.fit'
 
 #Measure zeropoint, extinction coefficient, and center on the reference image?
 measure_reference = False				#[True/False]Slove the reference image?
-reference = 'img-005-sky-V.fit'			#Reference image
+reference = 'img-003-sky-V.fit'			#Reference image
 apikey = 'cllxijkpvxsibace' 			#Astrometry API key
 
 #Select zeropoint to use
-use_default_zeropoint = False	#[True/False] If False, use measured zeropoint
+use_default_zeropoint = True	#[True/False] If False, use measured zeropoint
 
 #File names (do not change)
 fn_linearity = linearity[len(calibration):]

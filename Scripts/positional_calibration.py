@@ -45,7 +45,10 @@ def main():
 	"""
 	
 	#Read in the coordinates of the image center
-	file = open(p.data_cal+'center.txt', "r")
+	if p.use_default_zeropoint:			#use the default value
+		file = open(p.calibration+'center.txt', "r")
+	else:								#use the measured value from the dataset
+		file = open(p.data_cal+'center.txt', "r")
 	center = ast.literal_eval(file.read())
 	file.close()
 	center_ra = center['ra']

@@ -292,6 +292,11 @@ def main():
 	zeropoint and extinction coefficient. See the script description for detail.
 	All the inputs are defined and passed through process_input.
 	"""
+	
+	#Skip this script if default calibration constants will be used
+	if p.measure_reference == False: 
+		return
+
 	#--------------------------------------------------------------------------#
 	#		   Merge the standard star and detected star lists				   #
 	#--------------------------------------------------------------------------#

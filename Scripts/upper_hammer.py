@@ -3,15 +3,16 @@
 #
 #NPS Night Skies Program
 #
-#Last updated: 2020/10/21
+#Last updated: 2021/03/02
 #
-#This script 
+#This script defines the plot setting for projecting the sky in hammer equal 
+#area projection. The center of the projection is facing South. 
 #
 #Input: 
-#   (1) 
+#   (1) None
 #
 #Output:
-#   (1) 
+#   (1) upper_hammer projection class
 #
 #History:
 #	Li-Wei Hung -- Created 

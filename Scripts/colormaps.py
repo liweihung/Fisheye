@@ -60,6 +60,6 @@ plt.register_cmap(cmap=LinearSegmentedColormap('NPS_mag',cdict))
 if __name__ == '__main__':
     plt.rcParams['image.cmap'] = 'NPS_mag'
     img = n.arange(10000).reshape(100,100)
-    plt.imshow(img, interpolation='nearest')#, cmap=nps_mag
+    plt.imshow(img, interpolation='nearest')
     cbar = plt.colorbar()
     plt.show(block=False)

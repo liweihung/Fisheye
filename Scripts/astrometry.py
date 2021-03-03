@@ -45,6 +45,11 @@ def main():
 	standard stars and the center coordinates. See the script description for 
 	detail. All the inputs are defined and passed through process_input.
 	"""
+	
+	#Skip this script if default calibration constants will be used
+	if p.measure_reference == False: 
+		return
+	
 	#Mask - read in the fisheye mask to find the center of the view
 	maskhdr = fits.open(p.mask,uint=False)[0].header
 	yc, xc = maskhdr['CENTERY'], maskhdr['CENTERX']	#center of fisheye view

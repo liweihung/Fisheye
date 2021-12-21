@@ -1,6 +1,7 @@
 Calibration/
 Data_processed/
 Data_raw/
+Hardware/
 Observing/
 Performance/
 Reference/
@@ -9,3 +10,4 @@ Scripts/test.txt
 Software/
 Workshop/
 __pycache__/
+*.doc

@@ -2,8 +2,8 @@
 
 #file
 folder = '../Calibration/'
-filein = folder+'Sigma_3.5_Master_Flat.fit' 	#input file: usually a flat
+filein = folder+'flat_v_fish2_20210624.fit' 	#input file: usually a flat
 fileout = filein[:-4]+'_mask.fit'				#output file: fisheye mask
 
 #brightness cutoff:
-t = 14000		 #bright/light pixel threshold 
+t = 0.05		 #bright/light pixel threshold 

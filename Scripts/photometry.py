@@ -31,6 +31,7 @@
 import numpy as n
 import pandas as pd
 
+from astropy.coordinates import EarthLocation
 from astropy.io import fits
 from astropy.time import Time
 from matplotlib import pyplot as plt
@@ -300,7 +301,7 @@ def main():
 	#--------------------------------------------------------------------------#
 	#		   Merge the standard star and detected star lists				   #
 	#--------------------------------------------------------------------------#
-	fstd = p.calibration+'hipparcos_bright_standards_vmag6.txt' #standard 
+	fstd = p.calibration+'standards_hipparcos_vmag6.txt' #standard 
 	fcor = p.data_cal+'detected_stars.csv'  #detected from astrometry.net
 
 	H, C, T = match_stars(fstd, fcor)
@@ -310,8 +311,10 @@ def main():
 	#--------------------------------------------------------------------------#
 	#Open the original image and get the observing time and location
 	hdu_orig = fits.open(p.data_cal+p.reference, fix=False)[0] 
-	time = Time(hdu_orig.header['DATE-OBS'])  	#UTC observing date and time
-	lat, long = p.lat, p.long 	#degrees
+	hdr = hdu_orig.header
+	time = Time(hdr['DATE-OBS'])  		#UTC observing date and time
+	c = EarthLocation(lon=hdr['SITELONG'] , lat=hdr['SITELAT'])
+	lat, long = c.lat.deg, c.lon.deg 	#degrees
 	
 	#Zenith RA and Dec: compute based on the observing location and time
 	T['ZA'], T['Airmass'] = compute_za_airmass(time, lat, long, T.RA, T.DE)
@@ -321,7 +324,7 @@ def main():
 	#--------------------------------------------------------------------------#
 	#photometry with Gaussian PSF
 	T.field_x, T.field_y, T.Flux, T.Background, T['deltap'],T['sigma'],T['SN']=\
-	photometry(T.field_x, T.field_y, hdu_orig.data, hdu_orig.header['EXPTIME'])
+	photometry(T.field_x, T.field_y, hdu_orig.data, hdr['EXPTIME'])
 	
 	#--------------------------------------------------------------------------#
 	#						Zeropoint and extinction fitting				   #

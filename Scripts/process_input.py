@@ -1,27 +1,26 @@
 #Datasets
-datanight = 'PNGL_20201117A'
-lat, long = 40.816692, -104.601119 #observing location [degree]
-camera = 'Fish1'
+datanight = 'ALAM_20220225'
+camera = 'Fish2'
 processor = 'L_Hung'
 
-#Folders
+#Folders (do not change)
 calibration = '../Calibration/'
 data_cal = '../Data_processed/'+datanight+'/'
 data_raw = '../Data_raw/'+datanight+'/'
 
 #Calibration files
-linearity = calibration + 'ASI_6200_Linearity.txt'
-flatv     = calibration + 'Sigma_3.5_Master_Flat.fit'
+linearity = calibration + 'linearity_fish1_20200722.txt'
+flatv     = calibration + 'flat_v_fish2_20210624.fit'
 flatb     = calibration + ''
-mask      = calibration + 'Sigma_3.5_Master_Flat_mask.fit'
+mask      = calibration + 'flat_v_fish2_20210624_mask.fit'
 
 #Measure zeropoint, extinction coefficient, and center on the reference image?
-measure_reference = False				#[True/False] Solve the reference image?
-reference = 'img-003-sky-V.fit'			#Reference image
+measure_reference = True				#[True/False] Solve the reference image?
+reference = 'img-0006-sky-V.fit'			#Reference image
 apikey = 'cllxijkpvxsibace' 			#Astrometry API key
 
 #Select zeropoint to use
-use_default_zeropoint = True	#[True/False] If False, use measured zeropoint
+use_default_zeropoint = False	#[True/False] If False, use measured zeropoint
 
 #File names (do not change)
 fn_linearity = linearity[len(calibration):]

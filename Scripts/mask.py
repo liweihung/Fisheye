@@ -3,7 +3,7 @@
 #
 #NPS Night Skies Program
 #
-#Last updated: 2020/12/17
+#Last updated: 2022/3/3
 #
 #This script finds a circle to describe where the fisheye view is located. 
 #
@@ -34,9 +34,11 @@ importlib.reload(mi)
 flat = fits.open(mi.filein,uint=False)[0].data
 bright = n.where(flat>mi.t) #location of bright pixels
 
-#Find the xy center and the radius 
+#Find the xy center and the radius with no missing pixel 
 center_y , center_x = n.mean(bright,axis=1)
-radius = n.min(n.percentile(bright,99.99,axis=1) - n.mean(bright,axis=1))
+radius_t = n.min(n.percentile(bright,99.99,axis=1) - n.mean(bright,axis=1))
+radius = min(radius_t, center_y)
+
 
 #Creat the mask image
 x, y = n.meshgrid(n.arange(flat.shape[1]),n.arange(flat.shape[0]))

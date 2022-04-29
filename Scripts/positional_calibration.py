@@ -27,6 +27,7 @@
 import ast
 import numpy as n
 
+from astropy.coordinates import EarthLocation
 from astropy.io import fits
 from astropy.time import Time
 from glob import glob
@@ -58,10 +59,12 @@ def main():
 	
 	#Compute zenith RA and Dec based on the observing location and time
 	hdu = fits.open(p.data_cal+p.reference, fix=False)
-	time = Time(hdu[0].header['DATE-OBS'])  #UTC observing date and time
+	hdr = hdu[0].header
+	time = Time(hdr['DATE-OBS'])  #UTC observing date and time
+	c = EarthLocation(lon=hdr['SITELONG'] , lat=hdr['SITELAT'])
+	zenith_ra = time.sidereal_time('mean',longitude=c.lon.deg).degree
+	zenith_de = c.lat.deg
 	hdu.close()
-	zenith_ra = time.sidereal_time('mean',longitude=p.long).degree
-	zenith_de = p.lat
 	
 	#Compute the offset of the image centroid
 	dab = DistanceAndBearing(center_de,center_ra,zenith_de,zenith_ra)	

@@ -49,7 +49,7 @@ for i,f in tqdm(enumerate(imglist)):
 #find the center of the fisheye and define the radial distance grid R
 sum = n.sum(imgcube,axis=0)
 center = n.unravel_index(n.argmax(sum, axis=None), sum.shape)
-print('The fisheye image center:', center)
+print('The fisheye image center:', center) #(778, 1160)
 X,Y = n.meshgrid(n.arange(hdr['NAXIS1']),n.arange(hdr['NAXIS2'])) 
 R = n.sqrt((X-center[1])**2+(Y-center[0])**2)
 	
@@ -122,7 +122,7 @@ plt.savefig(fi.calibration+fi.flatstrips+'radial profile.png')
 print('Generating the flat model image')	
 #generate a flat model image
 model = n.empty_like(R)
-model[n.where(R<r1)] = p(R[n.where(R<r1)])
+model[n.where(R<=r1)] = p(R[n.where(R<=r1)])
 model[n.where((r1<R)&(R<r2))] = p2(R[n.where((r1<R)&(R<r2))])
 model[n.where(R>r2)] = n.nan
 model = model/p(0)	#normalize the center to 1

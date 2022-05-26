@@ -9,10 +9,11 @@
 #illumiated strips, the script automaticall detect the strip orientation and 
 #select the pixels that are colse to the center line. These pixels are then used 
 #to determine the flat profile as the distance to the center of the lens. The 
-#flat profile is a parabola in the center and a linear drop at the outer edge.  
+#flat profile is a parabola in the center + two lines + a constant.  
 #
 #Input: 
 #   (1) a set of flat strip image in flat_image_generation_input.flatstrips
+#	(2) flat_image_generation_input with three break points
 #
 #Output:
 #   (1) radial profile.png
@@ -29,6 +30,7 @@ import numpy as n
 from astropy.io import fits
 from glob import glob
 from matplotlib import pyplot as plt
+from scipy.optimize import curve_fit
 from tqdm import tqdm
 
 # Local Source
@@ -93,28 +95,35 @@ for i,img in tqdm(enumerate(imgcube)):
 	
 print('Fitting the flat profile...')
 #flat profile: r<r1 -- parabola; r1<r<r2 -- linear; r>r2 -- nan
-[r1,r2] = fi.linear_region
+[r1,r2,r3] = fi.linear_region
 
-#fit a 2nd degree polynomial from the center to r=r1 pix
-wfit = n.where(r<r1)
-rfit = r[wfit]
-lfit = l[wfit]
-z = n.polyfit(rfit,lfit,2)
-p = n.poly1d(z)
-xp = n.linspace(rfit.min(), rfit.max(), 100)
+#fit a 2nd degree polynomial + two linear lines + a constant
+def func3(x, a, b, c, d, e, f, g):
+	crosspt1 = a*r1**2+b*r1+c
+	crosspt2 = d*r2+e
+	crosspt3 = f*r3+g
 
-#fit a linear line for the outer edge
-wfit2 = n.where((r1<r)&(r<r2))
-rfit2 = r[wfit2]
-lfit2 = l[wfit2]
-z2 = n.polyfit(rfit2,lfit2,1)
-p2 = n.poly1d(z2)
-xp2 = n.linspace(rfit2.min(), rfit2.max(), 10)
+	m12 = (crosspt1-crosspt2)/(r1-r2)
+	m23 = (crosspt2-crosspt3)/(r2-r3)
+
+	y = n.zeros(len(x))
+	y += (a*x**2+b*x+c) * (x<=r1)  
+	y += (m12*x-m12*r2+crosspt2) * (x>r1) * (x<=r2)
+	y += (m23*x-m23*r3+crosspt3) * (x>r2) * (x<=r3)
+	y +=  crosspt3* (x>r3)
+	return y
+
+popt, pcov = curve_fit(func3, r, l)
+print(popt)
+xp = n.linspace(r.min(), r.max(), 200)
+
 
 #plot the radial profile of the flat and the best fits
 fig = plt.figure(1)
-plt.plot(r,l,'.',xp,p(xp),'-',xp2,p2(xp2),'-')
+plt.plot(r,l,'.')
+plt.plot(xp, func3(xp, *popt), 'y-', label='break points=%5i, %5i, and %5i' % (r1,r2,r3))
 plt.title('Radial profile of the flat and the best fits')
+plt.legend()
 plt.xlabel('Radial distance (pix)')
 plt.ylabel('Brightness (ADU)')
 plt.savefig(fi.calibration+fi.flatstrips+'radial profile.png')
@@ -122,18 +131,22 @@ plt.savefig(fi.calibration+fi.flatstrips+'radial profile.png')
 print('Generating the flat model image')	
 #generate a flat model image
 model = n.empty_like(R)
-model[n.where(R<=r1)] = p(R[n.where(R<=r1)])
-model[n.where((r1<R)&(R<r2))] = p2(R[n.where((r1<R)&(R<r2))])
-model[n.where(R>r2)] = n.nan
-model = model/p(0)	#normalize the center to 1
-	
-#plot and save the image as a fits file
-fits.writeto(fi.calibration+fi.flatstrips[:-1]+'.fit',model,overwrite=1)
+model[n.where(R<=r3)] = func3(R[n.where(R<=r3)], *popt)
+model[n.where(R>r3)] = n.nan
+model = model/func3(n.array([0.,]), *popt)	#normalize the center to 1
+
+#save the bestfit flat model as a fits file
+hdu = fits.PrimaryHDU()
+hdu.header['BREAKPT1'] = r1
+hdu.header['BREAKPT2'] = r2
+hdu.header['BREAKPT3'] = r3
+hdu.data = model
+hdu.writeto(fi.calibration+fi.flatstrips[:-1]+'.fit', overwrite=True)
+
+#plot the model image 
 fig = plt.figure(2)
 plt.imshow(model)
 plt.colorbar()
 plt.title('2D flat model')
 plt.savefig(fi.calibration+fi.flatstrips+'2D flat model.png')
 plt.show(block=False)
-
-

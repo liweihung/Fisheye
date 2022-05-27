@@ -26,10 +26,12 @@
 #------------------------------------------------------------------------------#
 
 import numpy as n
+import pandas as pd
 
 from astropy.io import fits
 from glob import glob
 from matplotlib import pyplot as plt
+from scipy.interpolate import UnivariateSpline
 from scipy.optimize import curve_fit
 from tqdm import tqdm
 
@@ -37,6 +39,10 @@ from tqdm import tqdm
 import flat_image_generation_input as fi
 
 #------------------------------------------------------------------------------#
+#------------------------------------------------------------------------------#
+#                      Reading in flat strips images                           #
+#------------------------------------------------------------------------------#
+
 #read in all the images
 img_folder = fi.calibration + fi.flatstrips
 imglist = glob(img_folder+'*.fit')
@@ -92,54 +98,66 @@ for i,img in tqdm(enumerate(imgcube)):
 	w = n.where(d<3)
 	r = n.hstack((r,R[w]))
 	l = n.hstack((l,img[w]))
-	
+
+
+#------------------------------------------------------------------------------#
+#                             Flat model fitting                               #
+#------------------------------------------------------------------------------#
 print('Fitting the flat profile...')
-#flat profile: r<r1 -- parabola; r1<r<r2 -- linear; r>r2 -- nan
-[r1,r2,r3] = fi.linear_region
 
-#fit a 2nd degree polynomial + two linear lines + a constant
-def func3(x, a, b, c, d, e, f, g):
-	crosspt1 = a*r1**2+b*r1+c
-	crosspt2 = d*r2+e
-	crosspt3 = f*r3+g
+#flat profile: r<r1 -- spline; r1<r<r2 -- linear; r>r2 -- constant
+[r1,r2] = fi.linear_region
 
-	m12 = (crosspt1-crosspt2)/(r1-r2)
-	m23 = (crosspt2-crosspt3)/(r2-r3)
+#fit a spline function in r < r1
+df = pd.DataFrame({'r': r[n.where(r<r1)], 'l': l[n.where(r<r1)]})
+bins = df.groupby(df.r.round(0)).mean()
+spl = UnivariateSpline(bins.index, bins.l, s=2.5e7)
 
+#fit linear lines in r >= r1
+def func(x, a, b):
+	crosspt1 = spl(r1)
+	crosspt2 = a*r2+b
+	m = (crosspt1-crosspt2)/(r1-r2)
 	y = n.zeros(len(x))
-	y += (a*x**2+b*x+c) * (x<=r1)  
-	y += (m12*x-m12*r2+crosspt2) * (x>r1) * (x<=r2)
-	y += (m23*x-m23*r3+crosspt3) * (x>r2) * (x<=r3)
-	y +=  crosspt3* (x>r3)
+	y += (m*x-m*r2+crosspt2) * (x>=r1) * (x<r2)
+	y +=  crosspt2* (x>=r2)
 	return y
 
-popt, pcov = curve_fit(func3, r, l)
-print(popt)
-xp = n.linspace(r.min(), r.max(), 200)
+popt, pcov = curve_fit(func, r, l)
 
+#combined model curve
+def modelf(x):
+	y = func(x, *popt) + spl(x)*(x<r1)
+	return y 
+
+
+#------------------------------------------------------------------------------#
+#                                  Plotting                                    #
+#------------------------------------------------------------------------------#
+xp = n.linspace(r.min(), r.max(), 1000)
 
 #plot the radial profile of the flat and the best fits
 fig = plt.figure(1)
 plt.plot(r,l,'.')
-plt.plot(xp, func3(xp, *popt), 'y-', label='break points=%5i, %5i, and %5i' % (r1,r2,r3))
+plt.plot(xp, modelf(xp), 'y-', lw=2, label='break points at %3i and %3i' % (r1,r2))
 plt.title('Radial profile of the flat and the best fits')
 plt.legend()
-plt.xlabel('Radial distance (pix)')
+plt.xlabel('Radial Distance (pix)')
 plt.ylabel('Brightness (ADU)')
-plt.savefig(fi.calibration+fi.flatstrips+'radial profile.png')
+plt.savefig(fi.calibration+fi.flatstrips+'radial profile.png', dpi=300)
+
 
 print('Generating the flat model image')	
 #generate a flat model image
 model = n.empty_like(R)
-model[n.where(R<=r3)] = func3(R[n.where(R<=r3)], *popt)
-model[n.where(R>r3)] = n.nan
-model = model/func3(n.array([0.,]), *popt)	#normalize the center to 1
+model[n.where(R<=r2)] = modelf(R[n.where(R<=r2)]) 
+model[n.where(R>r2)] = n.nan
+model = model/modelf(n.array([0.,]))	#normalize the center to 1
 
 #save the bestfit flat model as a fits file
 hdu = fits.PrimaryHDU()
 hdu.header['BREAKPT1'] = r1
 hdu.header['BREAKPT2'] = r2
-hdu.header['BREAKPT3'] = r3
 hdu.data = model
 hdu.writeto(fi.calibration+fi.flatstrips[:-1]+'.fit', overwrite=True)
 
@@ -148,5 +166,5 @@ fig = plt.figure(2)
 plt.imshow(model)
 plt.colorbar()
 plt.title('2D flat model')
-plt.savefig(fi.calibration+fi.flatstrips+'2D flat model.png')
+plt.savefig(fi.calibration+fi.flatstrips+'2D flat model.png', dpi=300)
 plt.show(block=False)

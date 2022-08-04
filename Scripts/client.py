@@ -11,15 +11,11 @@ import sys
 import time
 import base64
 
-try:
-    # py3
-    from urllib.parse import urlencode, quote
-    from urllib.request import urlopen, Request
-    from urllib.error import HTTPError
-except ImportError:
-    # py2
-    from urllib import urlencode, quote
-    from urllib2 import urlopen, Request, HTTPError
+# py3
+from urllib.parse import urlencode, quote
+from urllib.request import urlopen, Request
+from urllib.error import HTTPError
+
 
 #from exceptions import Exception
 from email.mime.base import MIMEBase
@@ -184,28 +180,6 @@ class Client(object):
         result = self.send_request('submission_images', {'subid':subid})
         return result.get('image_ids')
 
-    def overlay_plot(self, service, outfn, wcsfn, wcsext=0):
-        from astrometry.util import util as anutil
-        wcs = anutil.Tan(wcsfn, wcsext)
-        params = dict(crval1 = wcs.crval[0], crval2 = wcs.crval[1],
-                      crpix1 = wcs.crpix[0], crpix2 = wcs.crpix[1],
-                      cd11 = wcs.cd[0], cd12 = wcs.cd[1],
-                      cd21 = wcs.cd[2], cd22 = wcs.cd[3],
-                      imagew = wcs.imagew, imageh = wcs.imageh)
-        result = self.send_request(service, {'wcs':params})
-        print('Result status:', result['status'])
-        plotdata = result['plot']
-        plotdata = base64.b64decode(plotdata)
-        open(outfn, 'wb').write(plotdata)
-        print('Wrote', outfn)
-
-    def sdss_plot(self, outfn, wcsfn, wcsext=0):
-        return self.overlay_plot('sdss_image_for_wcs', outfn,
-                                 wcsfn, wcsext)
-
-    def galex_plot(self, outfn, wcsfn, wcsext=0):
-        return self.overlay_plot('galex_image_for_wcs', outfn,
-                                 wcsfn, wcsext)
 
     def myjobs(self):
         result = self.send_request('myjobs/')
@@ -271,7 +245,6 @@ if __name__ == '__main__':
     parser.add_option('--apikey', '-k', dest='apikey',
                       help='API key for Astrometry.net web service; if not given will check AN_API_KEY environment variable')
     parser.add_option('--upload', '-u', dest='upload', help='Upload a file')
-    parser.add_option('--upload-xy', dest='upload_xy', help='Upload a FITS x,y table as JSON')
     parser.add_option('--wait', '-w', dest='wait', action='store_true', help='After submitting, monitor job status')
     parser.add_option('--wcs', dest='wcs', help='Download resulting wcs.fits file, saving to given filename; implies --wait if --urlupload or --upload')
     parser.add_option('--newfits', dest='newfits', help='Download resulting new-image.fits file, saving to given filename; implies --wait if --urlupload or --upload')
@@ -348,7 +321,7 @@ if __name__ == '__main__':
     c = Client(**args)
     c.login(opt.apikey)
 
-    if opt.upload or opt.upload_url or opt.upload_xy:
+    if opt.upload or opt.upload_url:
         if opt.wcs or opt.kmz or opt.newfits or opt.corr or opt.annotate or opt.calibrate:
             opt.wait = True
 
@@ -381,11 +354,7 @@ if __name__ == '__main__':
 
         if opt.upload:
             upres = c.upload(opt.upload, **kwargs)
-        if opt.upload_xy:
-            from astrometry.util.fits import fits_table
-            T = fits_table(opt.upload_xy)
-            kwargs.update(x=[float(x) for x in T.x], y=[float(y) for y in T.y])
-            upres = c.upload(**kwargs)
+
         if opt.upload_url:
             upres = c.url_upload(opt.upload_url, **kwargs)
 

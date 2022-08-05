@@ -19,6 +19,9 @@
 #	Li-Wei Hung -- Created 
 #
 #-----------------------------------------------------------------------------#
+import os
+import shutil
+
 # Local Source
 import astrometry
 import process_input
@@ -28,6 +31,14 @@ import photometry
 import positional_calibration
 import projection
 import reduction
+
+#------------------------------------------------------------------------------#
+#Output - create calibrated images folder
+if not os.path.isdir(process_input.data_cal): 
+    os.makedirs(process_input.data_cal)
+
+#Save a copy of the process_input file
+shutil.copy("process_input.py", process_input.data_cal)
 
 #------------------------------------------------------------------------------#
 reduction.main()						#data reduction

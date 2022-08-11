@@ -16,12 +16,12 @@ flatb     = calibration + ''
 mask      = calibration + 'flat_v_fish2_20210624_mask.fit'
 
 #Measure zeropoint, extinction coefficient, and center on the reference image?
-measure_reference = True				#[True/False] Solve the reference image?
+measure_reference = False				#[True/False] Solve the reference image?
 reference = 'img-0006-sky-V.fit'		#Reference image
 apikey = 'cllxijkpvxsibace' 			#Astrometry API key
 
 #Select zeropoint to use
-use_default_zeropoint = False	#[True/False] If False, use measured zeropoint
+use_default_zeropoint = True	#[True/False] If False, use measured zeropoint
 
 #File names (do not change)
 fn_linearity = linearity[len(calibration):]

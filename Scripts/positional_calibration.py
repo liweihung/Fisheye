@@ -90,7 +90,6 @@ def main():
 		imgdata = image[0].data.astype('float32')
 		image[0].data = rotate(imgdata,ori,center=(xc,yc),mode='edge')
 		image[0].header['history']=f'Image is rotated by {ori} degrees'	
-		image[0].header['history']=f'Image is processed by {p.processor}'
 		
 		image.flush()
 		image.close()

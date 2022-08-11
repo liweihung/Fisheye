@@ -96,6 +96,7 @@ def main():
 			light /= flat							#divide by flat
 			
 			hdr = image.header
+			hdr['PROCESS'] = p.processor
 			hdr['history'] = f'Linearity curve used is {p.fn_linearity}'
 			hdr['history'] = f'Flat used is {flatfile[k][len(p.calibration):]}'
 			hdr['history'] = f'Mask used is {p.fn_mask}'			

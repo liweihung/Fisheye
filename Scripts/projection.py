@@ -83,31 +83,34 @@ def main():
     logo[n.where(logo[:, :] == [8, 6, 7])] = 0  # set background to black
 
     # Fisheye plot setting
-    fig0 = plt.figure('fisheye', figsize=(6, 7))
+    fig0 = plt.figure('fisheye', figsize=(7, 7))
     ax0 = fig0.add_subplot(111, projection='polar')
     fig0.tight_layout(rect=(0.02, 0.05, 0.98, 0.9))
     ax0.set_rlim(0, 90)
-    ax0.set_yticklabels([])
-    ax0.tick_params(colors='darkgray')
+    ax0.tick_params(colors='darkgray',pad=5)
+    ax0.set_yticks([17,34,51,66,80])
+    ax0.set_yticklabels(['','60°','','30°',''],color='gray')
+    ax0.set_xticks(n.linspace(0,2*n.pi,8,endpoint=False))
+    ax0.set_xticklabels(['N','45°','E','135°','S','225°','W','315°'],size=12)
     ax0.set_theta_zero_location('N')
     imagebox0 = OffsetImage(logo, zoom=0.25)
     imagebox0.image.axes = ax0
-    ab0 = AnnotationBbox(imagebox0, (0.06, 0.06), xycoords='figure fraction',
+    ab0 = AnnotationBbox(imagebox0, (0.07, 0.06), xycoords='figure fraction',
                          frameon=False)
     ax0.add_artist(ab0)
     imagebox1 = OffsetImage(colorbar, zoom=0.2)
     imagebox1.image.axes = ax0
-    ab1 = AnnotationBbox(imagebox1, (0.2, 0.892), xycoords='figure fraction',
+    ab1 = AnnotationBbox(imagebox1, (0.194, 0.88), xycoords='figure fraction',
                          frameon=False)
     ax0.add_artist(ab1)
     for mag in range(14, 25, 2):
-        ax0.text(-0.11+0.043*(mag-14), 1.08, mag, color='gray', fontsize=9,
+        ax0.text(-0.145+0.0408*(mag-14), 1.026, mag, color='darkgray', fontsize=9,
                  ha='left', va='center', transform=ax0.transAxes)
-    ax0.text(0.12, 1.15, r'V mags arcsec$^{-2}$', color='gray', fontsize=9,
+    ax0.text(0.07, 1.098, r'V mags arcsec$^{-2}$', color='darkgray', fontsize=9,
              ha='center', va='top', transform=ax0.transAxes)
-    ax0.text(-0.01, -0.095, 'U.S. National Park Service', color='gray',
+    ax0.text(-0.04, -0.055, 'U.S. National Park Service', color='w',
              fontsize=9, ha='left', va='center', transform=ax0.transAxes)
-    ax0.text(-0.01, -0.13, 'Night Skies Program', color='gray',
+    ax0.text(-0.04, -0.09, 'Night Skies Program', color='w',
              fontsize=9, ha='left', va='center', transform=ax0.transAxes)
 
     # Hammer plot setting
@@ -125,13 +128,13 @@ def main():
                          frameon=False)
     ax1.add_artist(ab3)
     for mag in range(14, 25):
-        ax1.text(-0.017+0.0348*(mag-14), 1.06, mag, color='gray', fontsize=10,
+        ax1.text(-0.017+0.0348*(mag-14), 1.06, mag, color='darkgray', fontsize=10,
                  ha='left', va='top', transform=ax1.transAxes)
-    ax1.text(0.14, 1.04, r'V mags arcsec$^{-2}$', color='gray', fontsize=10,
+    ax1.text(0.14, 1.04, r'V mags arcsec$^{-2}$', color='darkgray', fontsize=10,
              ha='center', va='top', transform=ax1.transAxes)
-    ax1.text(0.032, 0.41, 'U.S. National Park Service', color='gray',
+    ax1.text(0.032, 0.41, 'U.S. National Park Service', color='w',
              fontsize=10, ha='left', va='center', transform=ax1.transAxes)
-    ax1.text(0.043, 0.385, 'Night Skies Program', color='gray',
+    ax1.text(0.043, 0.385, 'Night Skies Program', color='w',
              fontsize=10, ha='left', va='center', transform=ax1.transAxes)
 
     # Suppressing a MatPlotLib benign warning about pcolormesh shading
@@ -140,7 +143,7 @@ def main():
     #--------------------------------------------------------------------------#
     #				Plot the image in fisheye and Hammer projections		   #
     #--------------------------------------------------------------------------#
-    for f in glob(p.data_cal+'img-00*-sky*.fit'):
+    for f in glob(p.data_cal+'img-0003*-sky*.fit'):
 
         print('projecting ' + f[len(p.data_cal):])
         imgf = fits.open(f, uint=False)[0]
@@ -148,41 +151,47 @@ def main():
         img = imgf.data[yc-r0:yc+r0, xc-r0:xc+r0]
         img_hammer = rotate(img.astype('float32'), -90, cval=n.nan)[inds, :]
         t = Time(hdr['DATE-OBS'])+TimeDelta(p.UTCoffset*3600, format='sec')
-        date = str(t.datetime.date())
-        hour = str(round(t.datetime.hour+t.datetime.minute/60, 1))+' hours'
+        #date = str(t.datetime.date())
+        date = t.datetime.strftime("%B %d, %Y")
+        hour = str(t.datetime.hour)+":"+str(t.datetime.minute)+' LMT'
 
         # plot fisheye
         ax0.pcolormesh(theta_f, r_deg, img, shading='flat', vmin=14, vmax=24)
         ax0.grid(True, color='gray', linestyle='dotted', linewidth=.5)
-        ax0.text(0.5, 1.2, hdr['LOCATION'], color='gray', fontsize=14,
-                 ha='center', va='center', transform=ax0.transAxes)
-        dtext = ax0.text(1.08, 1.12, date, color='gray', fontsize=12,
+        ax0.text(0.5, 1.16, hdr['LOCATION'], color='w', fontsize=14,
+                 ha='center', va='top', transform=ax0.transAxes)
+        dtext = ax0.text(1.12, 1.08, date, color='w', fontsize=12,
                          ha='right', va='center', transform=ax0.transAxes)
-        htext = ax0.text(1.08, 1.08, hour, color='gray', fontsize=12,
+        htext = ax0.text(1.12, 1.04, hour, color='w', fontsize=12,
                          ha='right', va='center', transform=ax0.transAxes)
-        ax0.text(1.08, -0.095, 'Observer: '+hdr['OBSERVER'], color='gray', fontsize=9,
+        ax0.text(1.12, -0.055, 'Observer: '+hdr['OBSERVER'], color='darkgray', fontsize=9,
                  ha='right', va='center', transform=ax0.transAxes)
-        ax0.text(1.08, -0.13, 'Processer: '+hdr['PROCESS'], color='gray', fontsize=9,
+        ax0.text(1.12, -0.09, 'Processer: '+hdr['PROCESS'], color='darkgray', fontsize=9,
                  ha='right', va='center', transform=ax0.transAxes)
         fig0.savefig(f[:-4]+'_fisheye.png', dpi=200)
-        # plt.show(block=False)
+        #plt.show(block=False)
         dtext.remove()
         htext.remove()
 
         # plot hammer
         ax1.pcolormesh(theta_s, r_s, img_hammer, vmin=14, vmax=24)
         ax1.grid(True)
-        ax1.text(0.5, 1.07, hdr['LOCATION'], color='gray', fontsize=16,
-                 ha='center', va='center', transform=ax1.transAxes)
-        obstime = date + '  ' + hour
-        ta = ax1.text(1.0, 1.07, obstime, color='gray', fontsize=16,
+        ax1.text(0.37, 1.08, hdr['LOCATION'], color='w', fontsize=16,
+                 ha='left', va='center', transform=ax1.transAxes)
+        #obstime = date + '  ' + hour
+        #ta = ax1.text(1.0, 1.07, obstime, color='w', fontsize=16,
+        #              ha='right', va='center', transform=ax1.transAxes)
+        ta1 = ax1.text(1.0, 1.08, date, color='w', fontsize=16,
                       ha='right', va='center', transform=ax1.transAxes)
-        ax1.text(1, 0.41, 'Observer: '+hdr['OBSERVER'], color='gray', fontsize=10,
+        ta2 = ax1.text(1.0, 1.03, hour, color='w', fontsize=16,
+                      ha='right', va='center', transform=ax1.transAxes)
+        ax1.text(1, 0.41, 'Observer: '+hdr['OBSERVER'], color='darkgray', fontsize=10,
                  ha='right', va='center', transform=ax1.transAxes)
-        ax1.text(1, 0.385, 'Processer: '+hdr['PROCESS'], color='gray', fontsize=10,
+        ax1.text(1, 0.385, 'Processer: '+hdr['PROCESS'], color='darkgray', fontsize=10,
                  ha='right', va='center', transform=ax1.transAxes)
         fig1.savefig(f[:-4]+'_hammer.png')
-        ta.remove()
+        ta1.remove()
+        ta2.remove()
 
 
 if __name__ == '__main__':

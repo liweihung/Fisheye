@@ -36,12 +36,16 @@ class UpperHammerAxes(HammerAxes):
 		HammerAxes.cla(self)
 		Axes.set_xlim(self, -n.pi, 2*n.pi)
 		Axes.set_ylim(self, 0, n.pi / 2.0)
+		self.set_longitude_grid(30)
+		self.set_latitude_grid(15)
+		self.set_longitude_grid_ends(73)
 		self.xaxis.set_ticks_position('top')
 		self.tick_params(axis='x', length=0)
 		self.tick_params(colors='grey', labelsize=11)
 		self.grid(color='gray', linestyle='dotted', linewidth=.5)
-		self.set_yticks(n.linspace(0, n.pi/2, 7)) #include latitude 90 label
+		self.set_yticks(n.deg2rad([0,10,24,39,56,73,90])) #include latitude 90 label
 		self.set_xticklabels(['N','30°','60°','E','120°','150°','S','210°','240°','W','300°','330°','N'])
+		self.set_yticklabels(['0°','15°','30°','45°','60°','75°','90°'])
 
 	
 	def _gen_axes_patch(self):

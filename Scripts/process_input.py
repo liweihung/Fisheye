@@ -2,7 +2,7 @@
 datanight = 'ALAM_20220225'
 UTCoffset = -7
 camera = 'Fish2'
-processor = 'L_Hung'
+processor = 'L Hung'
 
 #Folders (do not change)
 calibration = '../Calibration/'

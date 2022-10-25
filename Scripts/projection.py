@@ -103,10 +103,12 @@ def main():
     ab1 = AnnotationBbox(imagebox1, (0.194, 0.88), xycoords='figure fraction',
                          frameon=False)
     ax0.add_artist(ab1)
+    mspacef = '      '
+    maglabelf = 'bright'+mspacef+r'V mags arcsec$^{-2}$'+mspacef+'dark'
     for mag in range(14, 25, 2):
         ax0.text(-0.145+0.0408*(mag-14), 1.026, mag, color='darkgray', fontsize=9,
                  ha='left', va='center', transform=ax0.transAxes)
-    ax0.text(0.07, 1.098, r'V mags arcsec$^{-2}$', color='darkgray', fontsize=9,
+    ax0.text(0.07, 1.098, maglabelf, color='darkgray', fontsize=9,
              ha='center', va='top', transform=ax0.transAxes)
     ax0.text(-0.04, -0.055, 'U.S. National Park Service', color='w',
              fontsize=9, ha='left', va='center', transform=ax0.transAxes)
@@ -124,13 +126,15 @@ def main():
     ax1.add_artist(ab2)
     imagebox3 = OffsetImage(colorbar, zoom=0.47)
     imagebox3.image.axes = ax1
-    ab3 = AnnotationBbox(imagebox3, (0.19, 0.92), xycoords='figure fraction',
+    ab3 = AnnotationBbox(imagebox3, (0.19, 0.94), xycoords='figure fraction',
                          frameon=False)
     ax1.add_artist(ab3)
+    mspace = '                                   '
+    maglabel = 'bright'+mspace+r'V mags arcsec$^{-2}$'+mspace+'dark'
     for mag in range(14, 25):
-        ax1.text(-0.017+0.0348*(mag-14), 1.06, mag, color='darkgray', fontsize=10,
+        ax1.text(-0.017+0.0348*(mag-14), 1.08, mag, color='darkgray', fontsize=10,
                  ha='left', va='top', transform=ax1.transAxes)
-    ax1.text(0.14, 1.04, r'V mags arcsec$^{-2}$', color='darkgray', fontsize=10,
+    ax1.text(0.163, 1.06, maglabel, color='darkgray', fontsize=10,
              ha='center', va='top', transform=ax1.transAxes)
     ax1.text(0.032, 0.41, 'U.S. National Park Service', color='w',
              fontsize=10, ha='left', va='center', transform=ax1.transAxes)
@@ -143,7 +147,8 @@ def main():
     #--------------------------------------------------------------------------#
     #				Plot the image in fisheye and Hammer projections		   #
     #--------------------------------------------------------------------------#
-    for f in glob(p.data_cal+'img-0003*-sky*.fit'):
+
+    for f in glob(p.data_cal+'img-0004*-sky*.fit'):
 
         print('projecting ' + f[len(p.data_cal):])
         imgf = fits.open(f, uint=False)[0]
@@ -151,14 +156,14 @@ def main():
         img = imgf.data[yc-r0:yc+r0, xc-r0:xc+r0]
         img_hammer = rotate(img.astype('float32'), -90, cval=n.nan)[inds, :]
         t = Time(hdr['DATE-OBS'])+TimeDelta(p.UTCoffset*3600, format='sec')
-        #date = str(t.datetime.date())
-        date = t.datetime.strftime("%B %d, %Y")
+        date = str(t.datetime.date())
+        #date = t.datetime.strftime("%B %d, %Y") #Spelling out the month
         hour = str(t.datetime.hour)+":"+str(t.datetime.minute)+' LMT'
 
         # plot fisheye
         ax0.pcolormesh(theta_f, r_deg, img, shading='flat', vmin=14, vmax=24)
         ax0.grid(True, color='gray', linestyle='dotted', linewidth=.5)
-        ax0.text(0.5, 1.16, hdr['LOCATION'], color='w', fontsize=14,
+        ax0.text(0.5, 1.16, hdr['PARKNAME']+' '+hdr['LOCATION'], color='w', fontsize=14,
                  ha='center', va='top', transform=ax0.transAxes)
         dtext = ax0.text(1.12, 1.08, date, color='w', fontsize=12,
                          ha='right', va='center', transform=ax0.transAxes)
@@ -176,11 +181,10 @@ def main():
         # plot hammer
         ax1.pcolormesh(theta_s, r_s, img_hammer, vmin=14, vmax=24)
         ax1.grid(True)
-        ax1.text(0.37, 1.08, hdr['LOCATION'], color='w', fontsize=16,
-                 ha='left', va='center', transform=ax1.transAxes)
-        #obstime = date + '  ' + hour
-        #ta = ax1.text(1.0, 1.07, obstime, color='w', fontsize=16,
-        #              ha='right', va='center', transform=ax1.transAxes)
+        ax1.text(0.5, 1.08, hdr['PARKNAME'], color='w', fontsize=16,
+                 ha='center', va='center', transform=ax1.transAxes)
+        ax1.text(0.88, 1.08, hdr['LOCATION'], color='w', fontsize=16,
+                 ha='right', va='center', transform=ax1.transAxes)
         ta1 = ax1.text(1.0, 1.08, date, color='w', fontsize=16,
                       ha='right', va='center', transform=ax1.transAxes)
         ta2 = ax1.text(1.0, 1.03, hour, color='w', fontsize=16,

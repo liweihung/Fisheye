@@ -3,11 +3,11 @@
 #
 #NPS Night Skies Program
 #
-#Last updated: 2021/12/20
+#Last updated: 2022/11/30
 #
-#Given the input of a set of images with randomly orientated and evenly 
-#illumiated strips, the script automaticall detect the strip orientation and 
-#select the pixels that are colse to the center line. These pixels are then used 
+#Given a set of images with randomly orientated and evenly illumiated strips, 
+#the script automatically detects the strip orientation and select the pixels 
+#that are colse to the center line. These pixels are then used 
 #to determine the flat profile as the distance to the center of the lens. The 
 #flat profile is a parabola in the center + two lines + a constant.  
 #
@@ -36,7 +36,7 @@ from scipy.optimize import curve_fit
 from tqdm import tqdm
 
 # Local Source
-import flat_image_generation_input as fi
+import flat_input as fi
 
 #------------------------------------------------------------------------------#
 #------------------------------------------------------------------------------#
@@ -54,10 +54,12 @@ for i,f in tqdm(enumerate(imglist)):
 	imgcube[i] = fits.open(f,uint=False)[0].data
 	
 
-#find the center of the fisheye and define the radial distance grid R
+#find the center of the strips
 sum = n.sum(imgcube,axis=0)
 center = n.unravel_index(n.argmax(sum, axis=None), sum.shape)
-print('The fisheye image center:', center) #(778, 1160)
+print('The fisheye image center:', center)
+
+#define the radial distance grid R
 X,Y = n.meshgrid(n.arange(hdr['NAXIS1']),n.arange(hdr['NAXIS2'])) 
 R = n.sqrt((X-center[1])**2+(Y-center[0])**2)
 	
@@ -123,23 +125,43 @@ def func(x, a, b):
 	y +=  crosspt2* (x>=r2)
 	return y
 
-popt, pcov = curve_fit(func, r, l)
+popt, pcov = curve_fit(func, r[n.where(r<r2+200)], l[n.where(r<r2+200)])
 
 #combined model curve
 def modelf(x):
 	y = func(x, *popt) + spl(x)*(x<r1)
 	return y 
 
+#------------------------------------------------------------------------------#
+#                             Generate Flat model                              #
+#------------------------------------------------------------------------------#
+print('Generating the flat model image')	
+#generate a flat model image
+R2 = n.sqrt((X-center[1])**2+(Y-center[0])**2)
+model = n.empty_like(R2)
+model[n.where(R2<r2)] = modelf(R2[n.where(R2<r2)]) 
+model[n.where(R2>=r2)] = n.nan
+model = model/modelf(n.array([0.,]))	#normalize the center to 1
+
+#save the bestfit flat model as a fits file
+hdu = fits.PrimaryHDU()
+hdu.header['XCENTER'] = center[1]
+hdu.header['YCENTER'] = center[0]
+hdu.header['BREAKPT1'] = r1
+hdu.header['BREAKPT2'] = r2
+hdu.data = model
+hdu.writeto(fi.calibration+fi.flatstrips[:-1]+'.fit', overwrite=True)
+
 
 #------------------------------------------------------------------------------#
 #                                  Plotting                                    #
 #------------------------------------------------------------------------------#
-xp = n.linspace(r.min(), r.max(), 1000)
+xp = n.linspace(r.min(), r2+100, 1000)
 
 #plot the radial profile of the flat and the best fits
 fig = plt.figure(1)
-plt.plot(r,l,'.')
-plt.plot(xp, modelf(xp), 'y-', lw=2, label='break points at %3i and %3i' % (r1,r2))
+plt.plot(r,l,'.', label='strip center at (%i,%i)' %(center))
+plt.plot(xp, modelf(xp), 'y-', lw=2, label='break points at %3i and %3i' %(r1,r2))
 plt.title('Radial profile of the flat and the best fits')
 plt.legend()
 plt.xlabel('Radial Distance (pix)')
@@ -147,24 +169,12 @@ plt.ylabel('Brightness (ADU)')
 plt.savefig(fi.calibration+fi.flatstrips+'radial profile.png', dpi=300)
 
 
-print('Generating the flat model image')	
-#generate a flat model image
-model = n.empty_like(R)
-model[n.where(R<=r2)] = modelf(R[n.where(R<=r2)]) 
-model[n.where(R>r2)] = n.nan
-model = model/modelf(n.array([0.,]))	#normalize the center to 1
-
-#save the bestfit flat model as a fits file
-hdu = fits.PrimaryHDU()
-hdu.header['BREAKPT1'] = r1
-hdu.header['BREAKPT2'] = r2
-hdu.data = model
-hdu.writeto(fi.calibration+fi.flatstrips[:-1]+'.fit', overwrite=True)
-
 #plot the model image 
 fig = plt.figure(2)
 plt.imshow(model)
 plt.colorbar()
 plt.title('2D flat model')
 plt.savefig(fi.calibration+fi.flatstrips+'2D flat model.png', dpi=300)
+
+
 plt.show(block=False)

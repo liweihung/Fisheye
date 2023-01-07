@@ -3,65 +3,53 @@
 #
 #NPS Night Skies Program
 #
-#Last updated: 2022/3/3
+#Last updated: 2023/1/6
 #
-#This script finds a circle to describe where the fisheye view is located. 
+#This script generates a circular mask based on the given center and radius.
 #
 #Input: 
-#   (1) mask_input.py, containing a flat image or an image with fisheye viewing 
-#		area well lit and the brightness cutoff.
+#   (1) mask_input.py
+#   (2) ../Calibration/imagecenter.csv
 #
 #Output:
-#   (1) Image of a circular mask
+#   (1) A circular mask in fits format
 #
 #History:
 #	Li-Wei Hung -- Created 
 #
 #------------------------------------------------------------------------------#
-import importlib
 import numpy as n
 
 from astropy.io import fits
 from matplotlib import pyplot as plt
+%matplotlib qt
 
 # Local Source
 import mask_input as mi
 
-importlib.reload(mi)
 #-----------------------------------------------------------------------------#
 
-#Read in the file and the light pixels
-flat = fits.open(mi.filein,uint=False)[0].data
-bright = n.where(flat>mi.t) #location of bright pixels
-
-#Find the xy center and the radius with no missing pixel 
-center_y , center_x = n.mean(bright,axis=1)
-radius_t = n.min(n.percentile(bright,99.99,axis=1) - n.mean(bright,axis=1))
-radius = min(radius_t, center_y)
-
+#Read in the field od view information
+C = pd.read_csv('../Calibration/imagecenter.csv',index_col=0)
+xc = C['Xcenter'][mi.camera]
+yc = C['Ycenter'][mi.camera]
+r = C['Radius'][mi.camera]
 
 #Creat the mask image
-x, y = n.meshgrid(n.arange(flat.shape[1]),n.arange(flat.shape[0]))
-r = n.sqrt((x-center_x)**2 + (y-center_y)**2)
-mask = n.zeros_like(r)
-mask[n.where(r<=radius)] = 1
-mask[n.where(mask==0)] = n.nan
+x, y = n.meshgrid(n.arange(2394),n.arange(1597)) # 4x4 binning
+R = n.sqrt((x-xc)**2 + (y-yc)**2)
+mask = n.ones_like(R)
+mask[n.where(R>r)] = n.nan
 
 #save the bestfit model mask
 hdu = fits.PrimaryHDU()
-hdu.header['THRESHOL'] = mi.t
-hdu.header['CENTERX'] = center_x
-hdu.header['CENTERY'] = center_y
-hdu.header['RADIUS'] = radius
+hdu.header['XCENTER'] = xc
+hdu.header['YCENTER'] = yc
+hdu.header['RADIUS'] = r
 hdu.data = mask
-hdu.writeto(mi.fileout, overwrite=True)
+hdu.writeto('../Calibration/mask_%s_%i_%i_%i.fit'%(mi.camera, xc, yc, r), overwrite=True)
 
 #plot
-fig = plt.figure(1)
-maskplot = n.zeros_like(mask)
-maskplot[n.where(mask==1)]=n.nan
-plt.imshow(flat-maskplot)
+fig = plt.figure()
+plt.imshow(mask)
 plt.show(block=False)
-
-
-

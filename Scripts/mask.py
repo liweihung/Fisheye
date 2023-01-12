@@ -18,11 +18,12 @@
 #	Li-Wei Hung -- Created 
 #
 #------------------------------------------------------------------------------#
+import pandas as pd
 import numpy as n
 
 from astropy.io import fits
 from matplotlib import pyplot as plt
-%matplotlib qt
+#%matplotlib qt
 
 # Local Source
 import mask_input as mi

@@ -1,5 +1,5 @@
 #Datasets
-datanight = 'ALAM_20220225'
+datanight = 'GUIS_20221019'
 UTCoffset = -7
 camera = 'Fish2'
 processor = 'L Hung'
@@ -13,7 +13,7 @@ data_raw = '../Data_raw/'+datanight+'/'
 linearity = calibration + 'linearity_fish1_20200722.txt'
 flatv     = calibration + 'flat_v_fish2_20210624.fit'
 flatb     = calibration + ''
-mask      = calibration + 'flat_v_fish2_20210624_mask.fit'
+mask      = calibration + 'mask_Fish2_1179_780_756.fit'
 
 #Measure zeropoint, extinction coefficient, and center on the reference image?
 measure_reference = False				#[True/False] Solve the reference image?

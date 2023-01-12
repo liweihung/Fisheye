@@ -3,12 +3,12 @@
 #
 # NPS Night Skies Program
 #
-# Last updated: 2021/02/22
+# Last updated: 2023/01/11
 #
 # This script plots the fits images in fisheye and Hammer projections.
 #
 # Input:
-#   (1) reading in the mask to get the x,y center and the fisheye view radius
+#   (1) ../Calibration/imagecenter.csv
 #	(2) all the processed fisheye fit images
 #
 # Output:
@@ -17,9 +17,11 @@
 #
 # History:
 #	Li-Wei Hung -- Created
+#   
 #
 #------------------------------------------------------------------------------#
 import copy
+import pandas as pd
 import matplotlib as mpl
 from matplotlib.transforms import Transform
 import numpy as n
@@ -48,10 +50,12 @@ def main():
     #--------------------------------------------------------------------------#
     #						  Generate Polar Coordinates				   	   #
     #--------------------------------------------------------------------------#
-    # Mask - read in the fisheye mask center coordinates and radius
-    mask = fits.open(p.mask, uint=False)[0].header
-    xc, yc, r0 = int(mask['CENTERX']), int(
-        mask['CENTERY']), int(mask['RADIUS'])
+    # Read in the fisheye center coordinates and radius
+    C = pd.read_csv('../Calibration/imagecenter.csv',index_col=0)
+    xc = int(C['Xcenter'][p.camera])
+    yc = int(C['Ycenter'][p.camera])
+    r0 = int(C['Radius'][p.camera])
+
     X, Y = n.meshgrid(n.arange(-r0, r0), n.arange(-r0, r0))
 
     # Polar coordinates
@@ -88,7 +92,7 @@ def main():
     fig0.tight_layout(rect=(0.02, 0.05, 0.98, 0.9))
     ax0.set_rlim(0, 90)
     ax0.tick_params(colors='darkgray',pad=5)
-    ax0.set_yticks([17,34,51,66,80])
+    ax0.set_yticks([14.88,29.82,44.94,60.24,75.57])
     ax0.set_yticklabels(['','60°','','30°',''],color='gray')
     ax0.set_xticks(n.linspace(0,2*n.pi,8,endpoint=False))
     ax0.set_xticklabels(['N','45°','E','135°','S','225°','W','315°'],size=12)
@@ -148,7 +152,7 @@ def main():
     #				Plot the image in fisheye and Hammer projections		   #
     #--------------------------------------------------------------------------#
 
-    for f in glob(p.data_cal+'img-0004*-sky*.fit'):
+    for f in glob(p.data_cal+'img-0*-sky*.fit'):
 
         print('projecting ' + f[len(p.data_cal):])
         imgf = fits.open(f, uint=False)[0]
@@ -158,32 +162,31 @@ def main():
         t = Time(hdr['DATE-OBS'])+TimeDelta(p.UTCoffset*3600, format='sec')
         date = str(t.datetime.date())
         #date = t.datetime.strftime("%B %d, %Y") #Spelling out the month
-        hour = str(t.datetime.hour)+":"+str(t.datetime.minute)+' LMT'
+        hour = t.strftime("%H:%M") + ' LMT'
 
         # plot fisheye
         ax0.pcolormesh(theta_f, r_deg, img, shading='flat', vmin=14, vmax=24)
         ax0.grid(True, color='gray', linestyle='dotted', linewidth=.5)
-        ax0.text(0.5, 1.16, hdr['PARKNAME']+' '+hdr['LOCATION'], color='w', fontsize=14,
+        ax0.text(0.5, 1.16, hdr['PARKNAME'], color='w', fontsize=14,
                  ha='center', va='top', transform=ax0.transAxes)
+        ax0.text(1.12, 1.16, hdr['LOCATION'], color='w', fontsize=14,
+                 ha='right', va='top', transform=ax0.transAxes)         
         dtext = ax0.text(1.12, 1.08, date, color='w', fontsize=12,
                          ha='right', va='center', transform=ax0.transAxes)
         htext = ax0.text(1.12, 1.04, hour, color='w', fontsize=12,
                          ha='right', va='center', transform=ax0.transAxes)
         ax0.text(1.12, -0.055, 'Observer: '+hdr['OBSERVER'], color='darkgray', fontsize=9,
                  ha='right', va='center', transform=ax0.transAxes)
-        ax0.text(1.12, -0.09, 'Processer: '+hdr['PROCESS'], color='darkgray', fontsize=9,
+        ax0.text(1.12, -0.09, 'ASI6200 + Fisheye | Processer: '+hdr['PROCESS'], color='darkgray', fontsize=9,
                  ha='right', va='center', transform=ax0.transAxes)
         fig0.savefig(f[:-4]+'_fisheye.png', dpi=200)
-        #plt.show(block=False)
         dtext.remove()
         htext.remove()
 
         # plot hammer
         ax1.pcolormesh(theta_s, r_s, img_hammer, vmin=14, vmax=24)
         ax1.grid(True)
-        ax1.text(0.5, 1.08, hdr['PARKNAME'], color='w', fontsize=16,
-                 ha='center', va='center', transform=ax1.transAxes)
-        ax1.text(0.88, 1.08, hdr['LOCATION'], color='w', fontsize=16,
+        ax1.text(0.88, 1.08, hdr['PARKNAME']+'     '+hdr['LOCATION'], color='w', fontsize=16,
                  ha='right', va='center', transform=ax1.transAxes)
         ta1 = ax1.text(1.0, 1.08, date, color='w', fontsize=16,
                       ha='right', va='center', transform=ax1.transAxes)
@@ -191,7 +194,7 @@ def main():
                       ha='right', va='center', transform=ax1.transAxes)
         ax1.text(1, 0.41, 'Observer: '+hdr['OBSERVER'], color='darkgray', fontsize=10,
                  ha='right', va='center', transform=ax1.transAxes)
-        ax1.text(1, 0.385, 'Processer: '+hdr['PROCESS'], color='darkgray', fontsize=10,
+        ax1.text(1, 0.385, 'ASI6200 + Fisheye | Processer: '+hdr['PROCESS'], color='darkgray', fontsize=10,
                  ha='right', va='center', transform=ax1.transAxes)
         fig1.savefig(f[:-4]+'_hammer.png')
         ta1.remove()

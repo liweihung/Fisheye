@@ -1,5 +1,5 @@
 #------------------------------------------------------------------------------#
-#flat_image_generation.py
+#flat.py
 #
 #NPS Night Skies Program
 #

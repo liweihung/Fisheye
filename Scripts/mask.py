@@ -30,7 +30,7 @@ import mask_input as mi
 
 #-----------------------------------------------------------------------------#
 
-#Read in the field od view information
+#Read in the field of view information
 C = pd.read_csv('../Calibration/imagecenter.csv',index_col=0)
 xc = C['Xcenter'][mi.camera]
 yc = C['Ycenter'][mi.camera]

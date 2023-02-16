@@ -13,7 +13,7 @@
 #originl image is saved. Interim processing files are deleted. 
 #
 #Input: 
-#   (1) Mask for the fisheye view
+#   (1) imagecenter.csv
 #	(2) Reference fisheye images to be solved
 #
 #Output:
@@ -49,13 +49,14 @@ def main():
 	#Skip this script if default calibration constants will be used
 	if p.measure_reference == False: 
 		return
-	
-	#Mask - read in the fisheye mask to find the center of the view
-	maskhdr = fits.open(p.mask,uint=False)[0].header
-	yc, xc = maskhdr['CENTERY'], maskhdr['CENTERX']	#center of fisheye view
-	radius = maskhdr['RADIUS']						#mask radius [pix]
-	scale  = 90*60*60/radius 						#estimated scale ["/pix]
-	
+	 						
+	#Read in the field of view parameters
+	C = pd.read_csv(p.calibration+'imagecenter.csv',index_col=0)
+	xc = C['Xcenter'][p.camera]
+	yc = C['Ycenter'][p.camera]
+	radius = C['Radius'][p.camera]
+	scale  = 90*60*60/radius			#estimated scale ["/pix]
+
 	#Define the cutting parameters
 	nsquare = 5 #image will be cut into nsquare x nsquare pieces
 	side = n.int(n.floor_divide(2*radius,nsquare)) #length of each side [pix]

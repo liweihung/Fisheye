@@ -182,7 +182,7 @@ def photometry(x, y, img, exptime, sa=5, bai=6, bao=10):
 	bestfit_x, bestfit_y, flux, background = [], [], [], [] 
 	delta_position, sigma, SN = [], [], []
 	for xc, yc in zip(x,y):	
-		#cropp image centered on the star for fitting 
+		#crop image centered on the star for fitting 
 		star = img[int(yc)+s[:,n.newaxis],int(xc)+s] / exptime #counts/sec
 	
 		#measure background
@@ -192,10 +192,12 @@ def photometry(x, y, img, exptime, sa=5, bai=6, bao=10):
 		f = star[sw].ravel() - bg 				  #source pixels
 		p0 = (xc, yc, 3, 3000)#initial parameters (x,y,std,flux)
 		x, y = n.meshgrid(int(xc)+s,int(yc)+s)
-		popt = curve_fit(Gaussian_2d, [x[sw],y[sw]], f, p0=p0)[0]
+		try: 
+			popt = curve_fit(Gaussian_2d, [x[sw],y[sw]], f, p0=p0)[0]
+		except:
+			popt = n.array([xc, yc, 3, n.nan])
 
 		#set the acceptance threshold to record the measurement
-
 		npix = n.pi*(3*popt[2])**2 	   #numberof pixels in the aperture
 		source_noise = popt[3]*exptime #noise from the source
 		sky_noise = npix*bg*exptime	   #noise from the sky background

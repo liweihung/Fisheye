@@ -26,6 +26,7 @@
 #-----------------------------------------------------------------------------#
 import ast
 import numpy as n
+import pandas as pd
 
 from astropy.coordinates import EarthLocation
 from astropy.io import fits
@@ -73,8 +74,9 @@ def main():
 	print(f'Zenith is offset from the center by {offset_distance} degrees')
 	
 	#Mask - read in the fisheye mask center coordinates and radius
-	mask = fits.open(p.mask,uint=False)[0].header
-	xc, yc = mask['CENTERX'], mask['CENTERY']
+	C = pd.read_csv(p.calibration+'imagecenter.csv',index_col=0)
+	xc = C['Xcenter'][p.camera]
+	yc = C['Ycenter'][p.camera]
 	
 	#Position calibration
 	for f in glob(p.data_cal+'*sky*.fit'):

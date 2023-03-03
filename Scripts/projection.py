@@ -87,9 +87,9 @@ def main():
     logo[n.where(logo[:, :] == [8, 6, 7])] = 0  # set background to black
 
     # Fisheye plot setting
-    fig0 = plt.figure('fisheye', figsize=(7, 7))
+    fig0 = plt.figure('fisheye', figsize=(8, 8))
     ax0 = fig0.add_subplot(111, projection='polar')
-    fig0.tight_layout(rect=(0.02, 0.05, 0.98, 0.9))
+    fig0.tight_layout(rect=(0.02, 0.015, 0.98, 0.9))
     ax0.set_rlim(0, 90)
     ax0.tick_params(colors='darkgray',pad=5)
     ax0.set_yticks([14.88,29.82,44.94,60.24,75.57])
@@ -99,24 +99,24 @@ def main():
     ax0.set_theta_zero_location('N')
     imagebox0 = OffsetImage(logo, zoom=0.25)
     imagebox0.image.axes = ax0
-    ab0 = AnnotationBbox(imagebox0, (0.07, 0.06), xycoords='figure fraction',
+    ab0 = AnnotationBbox(imagebox0, (0.053, 0.058), xycoords='figure fraction',
                          frameon=False)
     ax0.add_artist(ab0)
-    imagebox1 = OffsetImage(colorbar, zoom=0.2)
+    imagebox1 = OffsetImage(colorbar, zoom=0.22)
     imagebox1.image.axes = ax0
-    ab1 = AnnotationBbox(imagebox1, (0.194, 0.88), xycoords='figure fraction',
+    ab1 = AnnotationBbox(imagebox1, (0.184, 0.888), xycoords='figure fraction',
                          frameon=False)
     ax0.add_artist(ab1)
-    mspacef = '      '
+    mspacef = '        '
     maglabelf = 'bright'+mspacef+r'V mags arcsec$^{-2}$'+mspacef+'dark'
     for mag in range(14, 25, 2):
-        ax0.text(-0.145+0.0408*(mag-14), 1.026, mag, color='darkgray', fontsize=9,
+        ax0.text(-0.1+0.0355*(mag-14), 1.029, mag, color='darkgray', fontsize=9,
                  ha='left', va='center', transform=ax0.transAxes)
-    ax0.text(0.07, 1.098, maglabelf, color='darkgray', fontsize=9,
-             ha='center', va='top', transform=ax0.transAxes)
-    ax0.text(-0.04, -0.055, 'U.S. National Park Service', color='w',
+    ax0.text(0.09, 1.062, maglabelf, color='darkgray', fontsize=9,
+             ha='center', va='bottom', transform=ax0.transAxes)
+    ax0.text(-0.036, 0.0, 'U.S. National Park Service', color='w',
              fontsize=9, ha='left', va='center', transform=ax0.transAxes)
-    ax0.text(-0.04, -0.09, 'Night Skies Program', color='w',
+    ax0.text(-0.036, -0.03, 'Night Skies Program', color='w',
              fontsize=9, ha='left', va='center', transform=ax0.transAxes)
 
     # Hammer plot setting
@@ -152,7 +152,7 @@ def main():
     #				Plot the image in fisheye and Hammer projections		   #
     #--------------------------------------------------------------------------#
 
-    for f in glob(p.data_cal+'img-0*-sky*.fit'):
+    for f in glob(p.data_cal+'img-0001-sky*.fit'):
 
         print('projecting ' + f[len(p.data_cal):])
         imgf = fits.open(f, uint=False)[0]
@@ -167,17 +167,19 @@ def main():
         # plot fisheye
         ax0.pcolormesh(theta_f, r_deg, img, shading='flat', vmin=14, vmax=24)
         ax0.grid(True, color='gray', linestyle='dotted', linewidth=.5)
-        ax0.text(0.5, 1.16, hdr['PARKNAME'], color='w', fontsize=14,
+        ax0.text(0.5, 1.15, hdr['PARKNAME'], color='w', fontsize=16,
                  ha='center', va='top', transform=ax0.transAxes)
-        ax0.text(1.12, 1.16, hdr['LOCATION'], color='w', fontsize=14,
-                 ha='right', va='top', transform=ax0.transAxes)         
-        dtext = ax0.text(1.12, 1.08, date, color='w', fontsize=12,
-                         ha='right', va='center', transform=ax0.transAxes)
-        htext = ax0.text(1.12, 1.04, hour, color='w', fontsize=12,
-                         ha='right', va='center', transform=ax0.transAxes)
-        ax0.text(1.12, -0.055, 'Observer: '+hdr['OBSERVER'], color='darkgray', fontsize=9,
+        ax0.text(1.09, 1.055, hdr['LOCATION'], color='w', fontsize=12,
+                 ha='right', va='bottom', transform=ax0.transAxes)         
+        dtext = ax0.text(1.09, 1.015, date, color='w', fontsize=12,
+                         ha='right', va='bottom', transform=ax0.transAxes)
+        htext = ax0.text(1.09, 0.975, hour, color='w', fontsize=12,
+                         ha='right', va='bottom', transform=ax0.transAxes)
+        ax0.text(1.09, 0.02, 'ASI6200 | Fisheye', color='darkgray', fontsize=9,
                  ha='right', va='center', transform=ax0.transAxes)
-        ax0.text(1.12, -0.09, 'ASI6200 + Fisheye | Processer: '+hdr['PROCESS'], color='darkgray', fontsize=9,
+        ax0.text(1.09, -0.01, 'Processer: '+hdr['PROCESS'], color='darkgray', fontsize=9,
+                 ha='right', va='center', transform=ax0.transAxes)
+        ax0.text(1.09, -0.04, 'Observer: '+hdr['OBSERVER'], color='darkgray', fontsize=9,
                  ha='right', va='center', transform=ax0.transAxes)
         fig0.savefig(f[:-4]+'_fisheye.png', dpi=200)
         dtext.remove()
@@ -192,9 +194,9 @@ def main():
                       ha='right', va='center', transform=ax1.transAxes)
         ta2 = ax1.text(1.0, 1.03, hour, color='w', fontsize=16,
                       ha='right', va='center', transform=ax1.transAxes)
-        ax1.text(1, 0.41, 'Observer: '+hdr['OBSERVER'], color='darkgray', fontsize=10,
+        ax1.text(1, 0.41, 'ASI6200 + Fisheye | Processer: '+hdr['PROCESS'], color='darkgray', fontsize=10,
                  ha='right', va='center', transform=ax1.transAxes)
-        ax1.text(1, 0.385, 'ASI6200 + Fisheye | Processer: '+hdr['PROCESS'], color='darkgray', fontsize=10,
+        ax1.text(1, 0.385, 'Observer: '+hdr['OBSERVER'], color='darkgray', fontsize=10,
                  ha='right', va='center', transform=ax1.transAxes)
         fig1.savefig(f[:-4]+'_hammer.png')
         ta1.remove()

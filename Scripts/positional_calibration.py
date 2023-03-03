@@ -70,8 +70,10 @@ def main():
 	#Compute the offset of the image centroid
 	dab = DistanceAndBearing(center_de,center_ra,zenith_de,zenith_ra)	
 	offset_distance = round(90-dab[0],2)
-	offset_bearing = dab[1]
+	offset_bearing = round(dab[1],2)
 	print(f'Zenith is offset from the center by {offset_distance} degrees')
+	print(f'Zenith bearing from the center is {offset_bearing} degrees')
+
 	
 	#Mask - read in the fisheye mask center coordinates and radius
 	C = pd.read_csv(p.calibration+'imagecenter.csv',index_col=0)
@@ -92,6 +94,8 @@ def main():
 		imgdata = image[0].data.astype('float32')
 		image[0].data = rotate(imgdata,ori,center=(xc,yc),mode='edge')
 		image[0].header['history']=f'Image is rotated by {ori} degrees'	
+		image[0].header['history']=f'Zenith is misaligned by {offset_distance} degrees'	
+		image[0].header['history']=f'Zenith bearing is {offset_bearing} degrees'	
 		
 		image.flush()
 		image.close()

@@ -152,7 +152,7 @@ def main():
     #				Plot the image in fisheye and Hammer projections		   #
     #--------------------------------------------------------------------------#
 
-    for f in glob(p.data_cal+'img-0001-sky*.fit'):
+    for f in glob(p.data_cal+'img-0*-sky*.fit'):
 
         print('projecting ' + f[len(p.data_cal):])
         imgf = fits.open(f, uint=False)[0]
@@ -165,7 +165,7 @@ def main():
         hour = t.strftime("%H:%M") + ' LMT'
 
         # plot fisheye
-        ax0.pcolormesh(theta_f, r_deg, img, shading='flat', vmin=14, vmax=24)
+        ax0.pcolormesh(theta_f, r_deg, img[:-1,:-1], shading='flat', vmin=14, vmax=24)
         ax0.grid(True, color='gray', linestyle='dotted', linewidth=.5)
         ax0.text(0.5, 1.15, hdr['PARKNAME'], color='w', fontsize=16,
                  ha='center', va='top', transform=ax0.transAxes)

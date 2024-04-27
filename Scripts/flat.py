@@ -31,6 +31,7 @@ import pandas as pd
 from astropy.io import fits
 from glob import glob
 from matplotlib import pyplot as plt
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.interpolate import UnivariateSpline
 from scipy.optimize import curve_fit
 from tqdm import tqdm
@@ -57,6 +58,7 @@ for i,f in tqdm(enumerate(imglist)):
 #find the center of the strips
 sum = n.sum(imgcube,axis=0)
 center = n.unravel_index(n.argmax(sum, axis=None), sum.shape)
+dark = n.median(n.mean(imgcube,axis=0)[:,0:500])
 print('The fisheye image center:', center)
 
 #define the radial distance grid R
@@ -101,7 +103,7 @@ for i,img in tqdm(enumerate(imgcube)):
 	r = n.hstack((r,R[w]))
 	l = n.hstack((l,img[w]))
 
-
+l = l-dark #dark subtraction
 #------------------------------------------------------------------------------#
 #                             Flat model fitting                               #
 #------------------------------------------------------------------------------#
@@ -156,25 +158,38 @@ hdu.writeto(fi.calibration+fi.flatstrips[:-1]+'.fit', overwrite=True)
 #------------------------------------------------------------------------------#
 #                                  Plotting                                    #
 #------------------------------------------------------------------------------#
-xp = n.linspace(r.min(), r2+100, 1000)
+#xp = n.linspace(r.min(), r2+100, 1000)
+xp = n.linspace(r.min(), r1, 100)
 
 #plot the radial profile of the flat and the best fits
 fig = plt.figure(1)
-plt.plot(r,l,'.', label='strip center at (%i,%i)' %(center))
-plt.plot(xp, modelf(xp), 'y-', lw=2, label='break points at %3i and %3i' %(r1,r2))
-plt.title('Radial profile of the flat and the best fits')
-plt.legend()
-plt.xlabel('Radial Distance (pix)')
-plt.ylabel('Brightness (ADU)')
+#plt.plot(r,l,'.', label='strip center at (%i,%i)' %(center))
+#plt.plot(xp, modelf(xp), 'y-', lw=2, label='break points at %3i and %3i' %(r1,r2))
+plt.plot(r,l,'.', label='illuminated pixels')
+plt.plot(xp, modelf(xp), 'y-', lw=2, label='1-D smoothing spline fit')
+plt.xlim(0,900)
+plt.tick_params(axis='both', which='major', labelsize=13)
+#plt.title('Radial profile of the flat and the best fits')
+plt.legend(fontsize=13)
+plt.xlabel('Radial Distance (pixel)', size=13)
+plt.ylabel('Brightness (ADU)', size=13)
 plt.savefig(fi.calibration+fi.flatstrips+'radial profile.png', dpi=300)
 
 
 #plot the model image 
 fig = plt.figure(2)
-plt.imshow(model)
-plt.colorbar()
-plt.title('2D flat model')
-plt.savefig(fi.calibration+fi.flatstrips+'2D flat model.png', dpi=300)
+ax = plt.gca()
+im = ax.imshow(model)
+ax.tick_params(axis='both', which='major', labelsize=13)
+plt.xlabel('X (pixel)', size=13)
+plt.ylabel('Y (pixel)', size=13)
 
+divider = make_axes_locatable(ax)
+cax = divider.append_axes("right", size="3%", pad=0.1)
+
+plt.colorbar(im, cax=cax)
+#plt.title('2D flat model')
+
+plt.savefig(fi.calibration+fi.flatstrips+'2D flat model.png', dpi=300)
 
 plt.show(block=False)

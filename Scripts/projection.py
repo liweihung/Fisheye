@@ -92,7 +92,7 @@ def main():
     fig0.tight_layout(rect=(0.02, 0.015, 0.98, 0.9))
     ax0.set_rlim(0, 90)
     ax0.tick_params(colors='darkgray',pad=5)
-    ax0.set_yticks([14.88,29.82,44.94,60.24,75.57])
+    ax0.set_yticks([15.13,30.29,45.49,60.88,76.17])
     ax0.set_yticklabels(['','60°','','30°',''],color='gray')
     ax0.set_xticks(n.linspace(0,2*n.pi,8,endpoint=False))
     ax0.set_xticklabels(['N','45°','E','135°','S','225°','W','315°'],size=12)
@@ -118,7 +118,7 @@ def main():
              fontsize=9, ha='left', va='center', transform=ax0.transAxes)
     ax0.text(-0.036, -0.03, 'Night Skies Program', color='w',
              fontsize=9, ha='left', va='center', transform=ax0.transAxes)
-
+    
     # Hammer plot setting
     fig1 = plt.figure('hammer', figsize=(15, 5.6))
     ax1 = fig1.add_subplot(111, projection="upper_hammer")
@@ -147,12 +147,12 @@ def main():
 
     # Suppressing a MatPlotLib benign warning about pcolormesh shading
     warnings.filterwarnings("ignore", category=UserWarning)
-
+    
     #--------------------------------------------------------------------------#
     #				Plot the image in fisheye and Hammer projections		   #
     #--------------------------------------------------------------------------#
 
-    for f in glob(p.data_cal+'img-0*-sky*.fit'):
+    for f in glob(p.data_cal+'*img-0*-sky*.fit'):
 
         print('projecting ' + f[len(p.data_cal):])
         imgf = fits.open(f, uint=False)[0]
@@ -184,7 +184,7 @@ def main():
         fig0.savefig(f[:-4]+'_fisheye.png', dpi=200)
         dtext.remove()
         htext.remove()
-
+        
         # plot hammer
         ax1.pcolormesh(theta_s, r_s, img_hammer, vmin=14, vmax=24)
         ax1.grid(True)
@@ -201,7 +201,7 @@ def main():
         fig1.savefig(f[:-4]+'_hammer.png')
         ta1.remove()
         ta2.remove()
-
+        
 
 if __name__ == '__main__':
     main()

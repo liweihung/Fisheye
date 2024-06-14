@@ -1,6 +1,6 @@
 #Datasets
-datanight = 'GUIS_20221021A'
-UTCoffset = -5
+datanight = 'BLCA_20220924-test'
+UTCoffset = -6
 camera = 'Fish2'
 processor = 'L Hung'
 
@@ -17,7 +17,7 @@ mask      = calibration + 'mask_Fish2_1179_780_756.fit'
 
 #Measure zeropoint, extinction coefficient, and center on the reference image?
 measure_reference = True				#[True/False] Solve the reference image?
-reference = 'img-0003-sky-V.fit'		#Reference image
+reference = 'img-0007-sky-V.fit'		#Reference image
 apikey = 'cllxijkpvxsibace' 			#Astrometry API key
 
 #Select zeropoint to use

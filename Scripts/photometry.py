@@ -370,7 +370,8 @@ def main():
 	#general plot setting
 	cbar = plt.colorbar()
 	cbar.ax.set_ylabel('signal-to-noise ratio')
-	plt.legend(loc='upper right', frameon=False, numpoints=1)
+	plt.ylim(6.8,10.1)
+	plt.legend(loc='upper right', fontsize=8, frameon=True, edgecolor='lightgray', numpoints=1, facecolor='white', framealpha=1)
 	plt.xlabel('Airmass')
 	plt.ylabel('M-m')
 	plt.title('Zeropoint and Extinction Coefficient')

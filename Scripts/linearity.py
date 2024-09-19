@@ -45,11 +45,11 @@ yc = C['Ycenter'][L.camera]
 r = 30 
 
 #Define the image region for characterizing linearity
-x, y = n.meshgrid(n.arange(2394),n.arange(1597)) # 4x4 binning
+x, y = n.meshgrid(n.arange(2392),n.arange(1596)) # 4x4 binning
 R = n.sqrt((x-xc)**2 + (y-yc)**2)
 
 #Determine bias
-biasimg = fits.open(L.calibration + L.imagefolder[0]+'img-0001-1.fit')[0].data
+biasimg = fits.open(glob(L.calibration + L.imagefolder[0]+'*.fit')[0])[0].data
 bias = n.median(biasimg[n.where(R>800)])
 print('Midian bias is ', bias)
 

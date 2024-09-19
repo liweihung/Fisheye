@@ -59,15 +59,18 @@ def main():
 
 	#Define the cutting parameters
 	nsquare = 5 #image will be cut into nsquare x nsquare pieces
-	side = n.int(n.floor_divide(2*radius,nsquare)) #length of each side [pix]
+	side = int(n.floor_divide(2*radius,nsquare)) #length of each side [pix]
 	hs = (nsquare-2)*side/2 #half of total cropped side length
 	
 	#Crop and solve the reference image
 	t = []
-	xbound = n.arange(xc-hs,xc+hs,side, dtype=n.int)
-	ybound = n.arange(yc-hs,yc+hs,side, dtype=n.int)
+	xbound = n.arange(xc-hs,xc+hs,side, dtype=int)
+	ybound = n.arange(yc-hs,yc+hs,side, dtype=int)
 
-	img = fits.open(p.data_cal+p.reference,uint=False)[0].data
+	ref_img = glob(p.data_cal+p.reference)[0]
+	print("Reference image is: ", ref_img)
+	img = fits.open(ref_img,uint=False)[0].data
+	
 	for i in xbound:
 		for j in ybound:
 		

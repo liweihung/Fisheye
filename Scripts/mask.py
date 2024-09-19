@@ -37,7 +37,7 @@ yc = C['Ycenter'][mi.camera]
 r = C['Radius'][mi.camera]
 
 #Creat the mask image
-x, y = n.meshgrid(n.arange(2394),n.arange(1597)) # 4x4 binning
+x, y = n.meshgrid(n.arange(2392),n.arange(1596)) # 4x4 binning
 R = n.sqrt((x-xc)**2 + (y-yc)**2)
 mask = n.ones_like(R)
 mask[n.where(R>r)] = n.nan

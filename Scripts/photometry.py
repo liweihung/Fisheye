@@ -34,6 +34,7 @@ import pandas as pd
 from astropy.coordinates import EarthLocation
 from astropy.io import fits
 from astropy.time import Time
+from glob import glob
 from matplotlib import pyplot as plt
 from scipy.optimize import curve_fit
 from scipy import stats
@@ -270,7 +271,6 @@ def fit_zeropoint_and_extinction(df, selection=True, dp=1, sig=2, snr=5, z=1):
 	print('Rejected: %s (%s%%).' %(nreject, round(100*nreject/ntotal)))
 	
 	estimators = [('Theil-Sen', TheilSenRegressor(random_state=42)),
-				  ('RANSAC', RANSACRegressor(random_state=42)),
 				  ('HuberRegressor', HuberRegressor())]
 
 	#fitting with OLS using n.polyfit
@@ -312,7 +312,7 @@ def main():
 	#						Zenith angle and airmass 						   #
 	#--------------------------------------------------------------------------#
 	#Open the original image and get the observing time and location
-	hdu_orig = fits.open(p.data_cal+p.reference, fix=False)[0] 
+	hdu_orig = fits.open(glob(p.data_cal+p.reference)[0], fix=False)[0] 
 	hdr = hdu_orig.header
 	time = Time(hdr['DATE-OBS'])  		#UTC observing date and time
 	c = EarthLocation(lon=hdr['SITELONG'] , lat=hdr['SITELAT'])
@@ -335,6 +335,7 @@ def main():
 	bestfit, z_err, e_err, T_use = fit_zeropoint_and_extinction(T, 
 								   selection=True, dp=1, sig=1, snr=5, z=1.5)
 	T_drop = T.drop(T_use.index)
+	print('Bestfit zeropoints:', bestfit)
 	
 	#save the bestfit to a file
 	F = pd.DataFrame.from_dict(bestfit, orient='index')
@@ -353,9 +354,8 @@ def main():
 				cmap='nipy_spectral_r')
 	
 	#bestfit models
-	colors = {'OLS': 'turquoise', 'Theil-Sen': 'gold', 'RANSAC': 'lightgreen', 
-			'HuberRegressor': 'black'}
-	linestyle = {'OLS':'-','Theil-Sen':'-.','RANSAC':'--','HuberRegressor':'--'}
+	colors = {'OLS':'turquoise', 'Theil-Sen':'gold', 'HuberRegressor':'black'}
+	linestyle = {'OLS':'-','Theil-Sen':'-.','HuberRegressor':'--'}
 	a = n.array([1,max(T.Airmass)])
 	for name in bestfit:
 		intercept, slope = bestfit[name]

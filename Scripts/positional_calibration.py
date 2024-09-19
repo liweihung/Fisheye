@@ -52,6 +52,7 @@ def main():
 	except(FileNotFoundError):
 		print('center.txt is not found. Position calibration is not performed.')
 		return
+
 	center = ast.literal_eval(file.read())
 	file.close()
 	center_ra = center['ra']
@@ -59,7 +60,7 @@ def main():
 	ori = round(center['orientation'],1)
 	
 	#Compute zenith RA and Dec based on the observing location and time
-	hdu = fits.open(p.data_cal+p.reference, fix=False)
+	hdu = fits.open(glob(p.data_cal+p.reference)[0], fix=False)
 	hdr = hdu[0].header
 	time = Time(hdr['DATE-OBS'])  #UTC observing date and time
 	c = EarthLocation(lon=hdr['SITELONG'] , lat=hdr['SITELAT'])
@@ -81,7 +82,7 @@ def main():
 	yc = C['Ycenter'][p.camera]
 	
 	#Position calibration
-	for f in glob(p.data_cal+'*sky*.fit'):
+	for f in glob(p.data_cal+'Light*.fit'):
 		image = fits.open(f,uint=False,mode='update')
 		
 		#correct for fisheye lens distorsion - need to be implemented

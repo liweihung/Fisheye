@@ -20,6 +20,7 @@
 #	Li-Wei Hung -- Created
 #
 #-----------------------------------------------------------------------------#
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as n
 
@@ -55,11 +56,11 @@ for i in range(len(mag_start)):
 cdict = {'red':red,'green':green,'blue':blue}
 
 #register the color map
-plt.register_cmap(cmap=LinearSegmentedColormap('NPS_mag',cdict))
+mpl.colormaps.register(LinearSegmentedColormap('NPS_mag',cdict))
 
 if __name__ == '__main__':
     plt.rcParams['image.cmap'] = 'NPS_mag'
     img = n.arange(10000).reshape(100,100)
     plt.imshow(img, interpolation='nearest')
     cbar = plt.colorbar()
-    plt.show(block=False)
+    plt.show()

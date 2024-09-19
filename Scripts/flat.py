@@ -3,13 +3,15 @@
 #
 #NPS Night Skies Program
 #
-#Last updated: 2022/11/30
+#Last updated: 2024/06/18
 #
 #Given a set of images with randomly orientated and evenly illumiated strips, 
 #the script automatically detects the strip orientation and select the pixels 
 #that are colse to the center line. These pixels are then used 
-#to determine the flat profile as the distance to the center of the lens. The 
-#flat profile is a parabola in the center + two lines + a constant.  
+#to determine the flat profile as the distance to the center of the lens. 
+#Average dark is computed by finding the median pixel value from all pixels 
+#located beyond 850 pixels from the center. The average dark is subtracted. 
+#The flat profile is a parabola in the center + two lines + a constant.  
 #
 #Input: 
 #   (1) a set of flat strip image in flat_image_generation_input.flatstrips
@@ -58,7 +60,6 @@ for i,f in tqdm(enumerate(imglist)):
 #find the center of the strips
 sum = n.sum(imgcube,axis=0)
 center = n.unravel_index(n.argmax(sum, axis=None), sum.shape)
-dark = n.median(n.mean(imgcube,axis=0)[:,0:500])
 print('The fisheye image center:', center)
 
 #define the radial distance grid R
@@ -103,7 +104,10 @@ for i,img in tqdm(enumerate(imgcube)):
 	r = n.hstack((r,R[w]))
 	l = n.hstack((l,img[w]))
 
+#subtract dark
+dark = n.median(n.mean(imgcube,axis=0)[n.where(R>850)])
 l = l-dark #dark subtraction
+
 #------------------------------------------------------------------------------#
 #                             Flat model fitting                               #
 #------------------------------------------------------------------------------#
@@ -158,18 +162,14 @@ hdu.writeto(fi.calibration+fi.flatstrips[:-1]+'.fit', overwrite=True)
 #------------------------------------------------------------------------------#
 #                                  Plotting                                    #
 #------------------------------------------------------------------------------#
-#xp = n.linspace(r.min(), r2+100, 1000)
-xp = n.linspace(r.min(), r1, 100)
+xp = n.linspace(r.min(), r2+100, 1000)
 
 #plot the radial profile of the flat and the best fits
 fig = plt.figure(1)
-#plt.plot(r,l,'.', label='strip center at (%i,%i)' %(center))
-#plt.plot(xp, modelf(xp), 'y-', lw=2, label='break points at %3i and %3i' %(r1,r2))
 plt.plot(r,l/1000,'.', label='illuminated pixels')
-plt.plot(xp, modelf(xp)/1000, 'y-', lw=2, label='1-D smoothing spline fit')
+plt.plot(xp, modelf(xp)/1000, 'y-', lw=2, label='spline fit + 2 lines')
 plt.xlim(0,900)
 plt.tick_params(axis='both', which='major', labelsize=13)
-#plt.title('Radial profile of the flat and the best fits')
 plt.legend(fontsize=13)
 plt.xlabel('Radial Distance (pixel)', size=13)
 plt.ylabel('Brightness (thousand ADU)', size=13)
@@ -186,10 +186,6 @@ plt.ylabel('Y (pixel)', size=13)
 
 divider = make_axes_locatable(ax)
 cax = divider.append_axes("right", size="3%", pad=0.1)
-
 plt.colorbar(im, cax=cax)
-#plt.title('2D flat model')
-
 plt.savefig(fi.calibration+fi.flatstrips+'2D flat model.png', dpi=300)
-
 plt.show(block=False)

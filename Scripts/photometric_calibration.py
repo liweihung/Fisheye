@@ -42,12 +42,15 @@ def main():
 	if p.use_default_zeropoint:	#use the default value
 		Z = pd.read_csv(p.calibration+'zeropoint.csv',index_col=0)
 		zp = Z['Zeropoint'][p.camera]
+		print('Default zeropoint is used in calibration: ', zp)
 	else:								#use the measured value from the dataset
-		Z = pd.read_csv(p.data_cal+'zeropoint.csv')
-		zp = Z['Zeropoint'].mean()
+		Z = pd.read_csv(p.data_cal+'zeropoint.csv',index_col=0)
+		zp = round(Z['Zeropoint']['OLS'],2)
+		print('Measured zeropoint is used in calibration:', zp)
+	
 		
 	#read in the pixel scale associated with the binning factor
-	imgfile = glob(p.data_cal+'*sky*')[0]
+	imgfile = glob(p.data_cal+'Light*')[0]
 	binning = fits.open(imgfile,uint=False)[0].header['XBINNING']
 	P = pd.read_csv(p.calibration+'platescale.csv',index_col=0)
 	pixscale = P['Scale'][binning] #["/pix]
@@ -56,7 +59,7 @@ def main():
 	psa = 2.5*n.log10(pixscale**2) 
 	
 	#brightness calibration
-	for f in glob(p.data_cal+'*sky*.fit'):
+	for f in glob(p.data_cal+'Light*.fit'):
 		image = fits.open(f,uint=False,mode='update')
 		hdr = image[0].header
 		image[0].data = zp + psa - 2.5*n.log10(image[0].data/hdr['EXPTIME'])

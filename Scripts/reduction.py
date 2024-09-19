@@ -56,14 +56,14 @@ def main():
 	#Bias - generate averaged bias 
 	biaslist = [
 		fits.open(i,uint=False)[0].data 
-		for i in glob(p.data_raw+'*bias.fit')]
+		for i in glob(p.data_raw+'Bias*.fit')]
 	bias = n.average(biaslist,axis=0)
 	
 	
 	#Dark - average dark is bias subtracted and linearity response corrected
 	darklist = [
 		fits.open(i,uint=False)[0].data 
-		for i in glob(p.data_raw+'*dark.fit')]
+		for i in glob(p.data_raw+'Dark*.fit')]
 	dark_bias_subtracted = n.average(darklist,axis=0)-bias     
 	dark = dark_bias_subtracted * n.interp(dark_bias_subtracted,xp,fp) 
 	
@@ -84,7 +84,7 @@ def main():
 			flat /= n.nanmean(flat)
 		except: continue
 		
-		for f in glob(p.data_raw+f'*sky-{k}.fit'):
+		for f in glob(p.data_raw+f'Light*{k}*.fit'):
 		
 			image  = fits.open(f,uint=False)[0]
 			light  = image.data 					#science image

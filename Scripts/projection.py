@@ -25,14 +25,16 @@ import pandas as pd
 import matplotlib as mpl
 from matplotlib.transforms import Transform
 import numpy as n
+import pytz
 import warnings
 
 from astropy.io import fits
-from astropy.time import Time, TimeDelta
+from datetime import datetime
 from glob import glob
 from matplotlib import pyplot as plt
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 from skimage.transform import rotate
+from timezonefinder import TimezoneFinder
 
 # Local Source
 import colormaps
@@ -40,6 +42,17 @@ import process_input as p
 import upper_hammer
 
 #------------------------------------------------------------------------------#
+
+# Function to get local time from UTC and location
+def get_local_time_from_utc(lat, lon, utc_time):
+    tf = TimezoneFinder()
+    timezone_str = tf.timezone_at(lng=lon, lat=lat)
+    if timezone_str is None:
+        return None
+    timezone = pytz.timezone(timezone_str)
+    utc_time = utc_time.replace(tzinfo=pytz.utc)
+    local_time = utc_time.astimezone(timezone)
+    return local_time
 
 
 def main():
@@ -79,7 +92,7 @@ def main():
     plt.close('all')
     plt.style.use('dark_background')
     plt.rcParams['image.cmap'] = 'NPS_mag'
-    cmap = copy.copy(mpl.cm.get_cmap("NPS_mag"))
+    cmap = copy.copy(mpl.colormaps["NPS_mag"])
     cmap.set_bad(color='black')
 
     colorbar = plt.imread(p.calibration+'colorbar.jpg')  # colorbar
@@ -152,16 +165,17 @@ def main():
     #				Plot the image in fisheye and Hammer projections		   #
     #--------------------------------------------------------------------------#
 
-    for f in glob(p.data_cal+'*img-0*-sky*.fit'):
+    for f in glob(p.data_cal+'Light*.fit'):
 
         print('projecting ' + f[len(p.data_cal):])
         imgf = fits.open(f, uint=False)[0]
         hdr = imgf.header
         img = imgf.data[yc-r0:yc+r0, xc-r0:xc+r0]
         img_hammer = rotate(img.astype('float32'), -90, cval=n.nan)[inds, :]
-        t = Time(hdr['DATE-OBS'])+TimeDelta(p.UTCoffset*3600, format='sec')
-        date = str(t.datetime.date())
-        #date = t.datetime.strftime("%B %d, %Y") #Spelling out the month
+        utc = utc_time = datetime.strptime(hdr['DATE-OBS'], '%Y-%m-%dT%H:%M:%S.%f')
+        t = get_local_time_from_utc(hdr['SITELAT'], hdr['SITELONG'], utc)
+        date = str(t.date())
+        #date = t.strftime("%B %d, %Y") #Spelling out the month
         hour = t.strftime("%H:%M") + ' LMT'
 
         # plot fisheye

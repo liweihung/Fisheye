@@ -15,7 +15,7 @@
 #
 #Input: 
 #   (1) a set of flat strip image in flat_image_generation_input.flatstrips
-#	(2) flat_image_generation_input with three break points
+#	(2) flat_image_generation_input with two break points
 #
 #Output:
 #   (1) radial profile.png

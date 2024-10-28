@@ -333,7 +333,7 @@ def main():
 	#--------------------------------------------------------------------------#
 	#fit the zeropoint and extinction
 	bestfit, z_err, e_err, T_use = fit_zeropoint_and_extinction(T, 
-								   selection=True, dp=1, sig=1, snr=5, z=1.5)
+								   selection=True, dp=1, sig=2, snr=5, z=1.5)
 	T_drop = T.drop(T_use.index)
 	print('Bestfit zeropoints:', bestfit)
 	

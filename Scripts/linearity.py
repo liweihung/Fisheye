@@ -93,12 +93,17 @@ c = n.array([0,10,20,40,50,75,100,125,175,200,350,500,1000,1500,2000,5000,9500,
              10000,15000,20000,30000,40000,50000,55000,60000,62500,64500,65000,
              65535])
 c_middle = n.array([(c[i]+c[i+1])/2 for i in range(len(c)-1)])
-df2 = df_combined.groupby(pd.cut(df_combined['Count'],c_middle)).mean()
+df_cut = pd.cut(df_combined['Count'], c_middle)
+df2 = df_combined.groupby(df_cut, observed=False).mean()
 df = pd.DataFrame({'Count':df2.Count,'Rate':df2.Rate})
 
 #Add the first and last points
-df = df.append({'Count':0,'Rate':df_combined.Rate[0]},ignore_index=True)
-df = df.append({'Count':65535,'Rate':df_combined.Rate.iat[-1]},ignore_index=True)
+new_rows = [
+    {'Count': 0, 'Rate': df_combined.Rate[0]},
+    {'Count': 65535, 'Rate': df_combined.Rate.iat[-1]}
+]
+new_df = pd.DataFrame(new_rows)
+df = pd.concat([df, new_df], ignore_index=True)
 df.sort_values('Count',inplace=True)
 df.reset_index(drop=True, inplace=True)
 
@@ -135,5 +140,5 @@ plt.plot(c, linearity_multiplier, '-')
 plt.xlabel('Pixel Value [counts]')
 plt.ylabel('Linearity Multiplier')
 plt.savefig(L.calibration+L.outfilename[:-4]+'.png', dpi=300)
-plt.show(block='False')
+plt.show(block=False)
 

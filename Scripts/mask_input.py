@@ -1,2 +1,2 @@
 #input the camera name for generating the fisheye mask (mask.py)
-camera = 'Fish2'
+camera = 'Fish5'

@@ -96,6 +96,13 @@ def main():
 			light /= flat							#divide by flat
 			
 			hdr = image.header
+			if p.update_headers:
+				hdr['Camera']   = p.camera 
+				hdr['SITELONG'] = p.longitude
+				hdr['SITELAT']  = p.latitude 
+				hdr['PARKNAME'] = p.park_name
+				hdr['LOCATION'] = p.site_name
+				hdr['OBSERVER'] = p.observers
 			hdr['PROCESS'] = p.processor
 			hdr['history'] = f'Linearity curve used is {p.fn_linearity}'
 			hdr['history'] = f'Flat used is {flatfile[k][len(p.calibration):]}'

@@ -29,6 +29,7 @@
 #
 #-----------------------------------------------------------------------------#
 import numpy as n
+import os
 import pandas as pd
 
 from astropy.coordinates import EarthLocation
@@ -299,6 +300,9 @@ def main():
 	#Skip this script if default calibration constants will be used
 	if p.measure_reference == False: 
 		return
+	elif not os.path.exists(p.data_cal+'detected_stars.csv'):
+		print('Astrometry solutions do not exist. Default zeropoint is used.')
+		return
 
 	#--------------------------------------------------------------------------#
 	#		   Merge the standard star and detected star lists				   #
@@ -360,7 +364,7 @@ def main():
 	for name in bestfit:
 		intercept, slope = bestfit[name]
 		if name == 'OLS':
-			label = '%s: (%.2f$\pm$%.2f)x+(%.2f$\pm$%.2f) ' \
+			label = r'%s: (%.2f$\pm$%.2f)x+(%.2f$\pm$%.2f)' \
 					% (name,slope,e_err,intercept,z_err)
 		else: 
 			label = '%s: %.2fx+%.2f ' % (name,slope,intercept)

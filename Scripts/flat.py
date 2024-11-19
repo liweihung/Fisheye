@@ -3,7 +3,7 @@
 #
 #NPS Night Skies Program
 #
-#Last updated: 2024/06/18
+#Last updated: 2024/11/12
 #
 #Given a set of images with randomly orientated and evenly illumiated strips, 
 #the script automatically detects the strip orientation and select the pixels 
@@ -11,7 +11,8 @@
 #to determine the flat profile as the distance to the center of the lens. 
 #Average dark is computed by finding the median pixel value from all pixels 
 #located beyond 850 pixels from the center. The average dark is subtracted. 
-#The flat profile is a parabola in the center + two lines + a constant.  
+#The flat profile is a spline function in r < r1, a line in r1 < r < r2, and 
+#a constant in r > r2.  
 #
 #Input: 
 #   (1) a set of flat strip image in flat_image_generation_input.flatstrips

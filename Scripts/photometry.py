@@ -32,6 +32,12 @@ import numpy as n
 import os
 import pandas as pd
 
+import astropy
+# `astropy` relies on IERS (International Earth Rotation and Reference Systems Service)
+# by default it will throw an error if it encounters download issues
+# we override to accomodate SSL encryption
+# see https://docs.astropy.org/en/stable/api/astropy.utils.iers.IERSDegradedAccuracyWarning.html
+astropy.utils.iers.conf.iers_degraded_accuracy = "warn" 
 from astropy.coordinates import EarthLocation
 from astropy.io import fits
 from astropy.time import Time

@@ -33,11 +33,6 @@ import os
 import pandas as pd
 
 import astropy
-# `astropy` relies on IERS (International Earth Rotation and Reference Systems Service)
-# by default it will throw an error if it encounters download issues
-# we override to accomodate SSL encryption
-# see https://docs.astropy.org/en/stable/api/astropy.utils.iers.IERSDegradedAccuracyWarning.html
-astropy.utils.iers.conf.iers_degraded_accuracy = "warn" 
 from astropy.coordinates import EarthLocation
 from astropy.io import fits
 from astropy.time import Time
@@ -47,6 +42,14 @@ from scipy.optimize import curve_fit
 from scipy import stats
 from sklearn.linear_model import (
      TheilSenRegressor, RANSACRegressor, HuberRegressor)
+
+# `astropy` relies on IERS (International Earth Rotation and Reference Systems Service)
+# by default it will throw an error if it encounters download issues
+# we override to accomodate SSL encryption
+# see https://docs.astropy.org/en/stable/api/astropy.utils.iers.IERSDegradedAccuracyWarning.html
+from astropy.utils.iers import conf
+conf.iers_degraded_accuracy = "warn" 
+conf.auto_max_age = None
 
 # Local Source
 import process_input as p     

@@ -1,29 +1,29 @@
 #Datasets
-datanight = 'ROMO_20241003'
-camera = 'Fish5'
-processor = 'L Hung'
+datanight = ''  # ROMO_20241003 for example
+camera = ''     # Fish5 for example
+processor = ''  # L Hung for example
 
 #Update headers
-update_headers = True #[True/False] 
-longitude =  -105.663598734252  #in decimal degrees, negative sign for west
-latitude  =  40.400346402882  #in decimal degrees
-park_name = 'Rocky Mountain National Park'   # full name, eg. 'Rocky Mountain National Park'
-site_name = 'Rainbow Curve'   # full name, eg. 'Parking Lot A'
-observers = 'B Banet, J White'   # follow this format: 'B Banet, J White, L Hung'
+update_headers = #[True/False] 
+longitude =      # in decimal degrees, negative sign for west
+latitude  =      # in decimal degrees
+park_name = ''   # full name, eg. 'Rocky Mountain National Park'
+site_name = ''   # full name, eg. 'Parking Lot A'
+observers = ''   # follow this format: 'B Banet, J White, L Hung'
 
 #Calibration files
-Linearity = 'linearity_fish5_20241009.txt'
-Flat_V = 'flat_v_fish5_20241016.fit'
+Linearity = ''
+Flat_V = ''
 Flatb_B = ''
-Mask = 'mask_Fish5_1178_775_760.fit'
+Mask = ''
 
 #Measure zeropoint, extinction coefficient, and center on the reference image?
-measure_reference = True			#[True/False] Solve the reference image?
-reference = 'Light*V*3.fit'		    #Reference image
-apikey = 'cllxijkpvxsibace' 		#Astrometry API key
+measure_reference = 	#[True/False] Solve the reference image?
+reference = ''		    #Reference image for example Light*V*3.fit
+apikey = '' 		    #Astrometry API key cllxijkpvxsibace
 
 #Select zeropoint to use
-use_default_zeropoint = False	#[True/False] If False, use measured zeropoint
+use_default_zeropoint = 	#[True/False] If False, use measured zeropoint
 
 
 #--------------------------------------------------------------------------#

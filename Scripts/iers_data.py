@@ -38,7 +38,8 @@ import astropy_iers_data as aid
 #-----------------------------------------------------------#
 
 # Path where tables are saved (astropy-iers-data package location).
-# This is where all astropy routines will look for them.
+# This is where all astropy routines will look for them when the
+# astropy.utils.iers.conf parameter auto_download = False.
 DATA = pathlib.Path(aid.__file__).resolve().parent / "data"
 
 # IERS-A default file name, URL, and ReadMe with content description
@@ -88,7 +89,7 @@ def main():
     # Try downloading IERS-A file
     status = download_file(IERS_A_URL, IERS_A_FILE)
     if status != 200:
-        status - download_file(IERS_A_URL_MIRROR, IERS_A_FILE)
+        status = download_file(IERS_A_URL_MIRROR, IERS_A_FILE)
 
     # Try downloading IERA-B file
     status = download_file(IERS_B_URL, IERS_B_FILE)

@@ -48,8 +48,9 @@ from sklearn.linear_model import (
 # we override to accomodate SSL encryption
 # see https://docs.astropy.org/en/stable/api/astropy.utils.iers.IERSDegradedAccuracyWarning.html
 from astropy.utils.iers import conf
-conf.iers_degraded_accuracy = "warn" 
-conf.auto_max_age = None
+conf.auto_download = False
+# conf.iers_degraded_accuracy = "warn" 
+conf.auto_max_age = 30
 
 # Local Source
 import process_input as p     

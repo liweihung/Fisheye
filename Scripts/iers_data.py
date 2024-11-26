@@ -24,20 +24,21 @@
 #    None
 #
 #History:
-#    Zach Vanderbosch -- Created 
+#    Zach Vanderbosch -- Created on 11/25/2024
 #-----------------------------------------------------------#
 
 import pathlib
 import requests
 import astropy_iers_data as aid
 
-
 #-----------------------------------------------------------#
 #-----------------------------------------------------------#
 #           Define IERS Table URLs and Filenames            #
+#       https://github.com/astropy/astropy-iers-data        #
 #-----------------------------------------------------------#
 
-# Path where tables are saved
+# Path where tables are saved (astropy-iers-data package location).
+# This is where all astropy routines will look for them.
 DATA = pathlib.Path(aid.__file__).resolve().parent / "data"
 
 # IERS-A default file name, URL, and ReadMe with content description

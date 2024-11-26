@@ -66,10 +66,11 @@ def download_file(url, filename):
 
     if status != 200:
         reason = response.reason
-        message = f"Could not download table at {url}\nStatus Code [{status}]: {reason}"
+        message = f"  Could not download table at {url}\n" +\
+                  f"  Status Code [{status}]: {reason}"
         return status
     else:
-        print(f"Successfully downloaded table at {url}")
+        print(f"  Successfully downloaded table at {url}")
 
     # Save response to file
     with open(filename, "w") as f:
@@ -80,6 +81,8 @@ def download_file(url, filename):
 
 # Execute file downloads
 def main():
+
+    print('Updating IERS tables...')
 
     # Try downloading IERS-A file
     status = download_file(IERS_A_URL, IERS_A_FILE)

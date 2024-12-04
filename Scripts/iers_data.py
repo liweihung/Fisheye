@@ -1,5 +1,5 @@
 #-----------------------------------------------------------#
-# IERS_data.py
+# iers_data.py
 #
 # NPS Night Skies Program
 #

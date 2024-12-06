@@ -31,11 +31,13 @@
 import numpy as n
 import os
 import pandas as pd
+import warnings
 
 import astropy
 from astropy.coordinates import EarthLocation
 from astropy.io import fits
 from astropy.time import Time
+from astropy.utils.iers import IERSDegradedAccuracyWarning
 from glob import glob
 from matplotlib import pyplot as plt
 from scipy.optimize import curve_fit
@@ -48,10 +50,12 @@ from sklearn.linear_model import (
 # we override to accomodate SSL encryption
 # see https://docs.astropy.org/en/stable/api/astropy.utils.iers.IERSDegradedAccuracyWarning.html
 from astropy.utils.iers import conf
-conf.iers_degraded_accuracy = "warn" 
+conf.auto_download = True
+conf.iers_degraded_accuracy = "warn"
 conf.auto_max_age = None
 
 # Local Source
+import iers_data
 import process_input as p     
 from sphericalgeometry import DistanceAndBearing
 
@@ -131,8 +135,25 @@ def compute_za_airmass(time, latitude, longitude, ra, dec):
 	"""
 	
 	#Zenith RA and Dec: compute based on the observing location and time
-	zenith_ra = time.sidereal_time('mean',longitude=longitude).degree #[degree]
-	zenith_de = latitude											  #[degree]
+	#This section also checks whether an IERS Degraded Accuracy warning
+	#is encountered, which typically means that Astropy has not been
+	#able to download updated IERS tables into the .astropy/cache. If a
+	#warning is detected, it will call the iers_data.py script and attempt
+	#to dowload new IERS tables into the astropy_iers_data directory.
+	with warnings.catch_warnings(record=True) as captured_warnings:
+
+		zenith_ra = time.sidereal_time('mean',longitude=longitude).degree #[degree]
+		
+		# Check for degraded accuracy warning
+		warning_check = [w.category == IERSDegradedAccuracyWarning for w in captured_warnings]
+		if any(warning_check):
+			print('IERS tables are out of date, attempting to download new tables...')
+			iers_data.main()
+
+			# Redo the zenith RA calculation after table updates
+			zenith_ra = time.sidereal_time('mean',longitude=longitude).degree #[degree]
+
+	zenith_de = latitude #[degree]
 
 	#Zenith angle: compute and add to the dataframe
 	al = DistanceAndBearing(zenith_de,zenith_ra,dec,ra)[0]  #star altitude

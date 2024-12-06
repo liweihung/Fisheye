@@ -23,7 +23,6 @@ import os
 import shutil
 
 # Local Source
-import iers_data
 import astrometry
 import process_input
 import median_filter
@@ -42,7 +41,6 @@ if not os.path.isdir(process_input.data_cal):
 shutil.copy("process_input.py", process_input.data_cal)
 
 #------------------------------------------------------------------------------#
-iers_data.main()                        #Update IERS tables
 reduction.main()						#data reduction
 astrometry.main()						#astrometric measurement
 photometry.main()						#Gaussian PSF photometry

@@ -5,14 +5,14 @@ There are two options for running the Fisheye post-process. <br>
 Before you do, it is a best practice to pull the latest changes from this repository using `git pull`.
 
 ### VS Code
-Step 1: Open VS code software.
+Step 1: Open VS code software. <br> 
 Step 2: Open the *Fisheye\Scripts* repository folder. <br> 
 Step 3: Open the VS Code terminal. From the menu, "View → Terminal". Or use Ctrl + backtick. <br>
 Step 4: In the terminal type `conda activate fisheye` and press Enter. <br>
 Step 5: In the terminal type `git pull` and press Enter. <br>
 Step 6: Open `process_input.py` and enter all the deployment metadata. Save the file. <br>
 Step 7: Type `ipython` to activate the IPython terminal. <br>
-Step 8: Run `process.py`. <br>
+Step 8: `run process.py`. <br>
 
 ### Miniforge
 Step 1: In the Fisheye repository scripts folder, open `process_input.py` (with a text editor) and enter all the deployment metadata. Save the file. <br>

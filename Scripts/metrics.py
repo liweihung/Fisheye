@@ -74,6 +74,23 @@ def illuminance_horizontal(img):
     return Eh
 
 
+def illuminance_vertical(img):
+    """
+	Calculate the illuminance_vertical illuminance. 
+
+	Parameters
+	----------
+	img : 2D array
+        Fisheye image
+        
+	Returns
+	-------
+	Eh : float
+		illuminance_vertical illuminance in mlx
+  
+	"""
+    pass
+
 #------------------------------------------------------------------------------#
 
 #Read in the image center coordinates

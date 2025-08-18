@@ -88,7 +88,9 @@ def main():
 			cmd = f'python client.py -k {p.apikey} \
 									--upload "{fn}" \
 									--parity 1 \
+									--scale-units arcsecperpix \
 									--scale-est {scale} \
+									--scale-err 10.0 \
 									--corr "{fn[:-4]}_corr.fit" \
 									--calibrate "{fn[:-4]}_calib.txt"'
 

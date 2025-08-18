@@ -89,6 +89,101 @@ def fisheye_to_rectangular(fisheye_img, xc, yc, radius):
 
     return output_img
 
+def terrain_boundary_mask(rectangular_img, t1=0.6, t2=0.5):
+    """
+
+    Args:
+        rectangular_img (_type_): _description_
+    """
+    # Set the default drop indices to be the first nan in each column 
+    nan_mask = np.isnan(rectangular_img)
+    jump_indices = np.argmax(nan_mask, axis=0)
+    for col in range(rectangular_img.shape[1]):
+        rectangular_img[jump_indices[col]:,col] = np.nan
+        
+    #----------------------------------------------------------------------#
+    #   			   Finding the sky-terrain boundary                    #
+    #----------------------------------------------------------------------#
+    
+    # Step 1: Find the first drop beyond the threshold in each column
+    differences = np.abs(np.diff(rectangular_img, n=5, axis=0))
+    threshold1 = t1
+    
+    for col in range(differences.shape[1]):
+        
+        jump_index = np.where(differences[:, col] > threshold1)[0]
+        
+        if jump_index.size > 0:
+            jump_indices[col] = jump_index[0]
+            
+    # Step 2: Clip and median filter the jump_indices
+    jump_indices = np.clip(jump_indices, 0, R)
+    jump_indices_mf = median_filter(jump_indices, size=80)
+    
+    # Step 3: Fine tune by finding the drop near the median filtered location
+    threshold2 = t2
+    jump_indices2 = jump_indices_mf.copy()
+
+    for col in range(differences.shape[1]):
+        
+        jump_index = np.where(differences[:, col] > threshold2)[0]
+
+        if jump_index.size > 0:
+            a = np.min(np.abs(jump_index-jump_indices_mf[col]))
+            b = np.abs(R-jump_indices_mf[col])
+
+            if a < b:
+                w = np.argmin(np.abs(jump_index-jump_indices_mf[col]))
+                jump_indices2[col] = jump_index[w]
+    
+    # Step 4: Final median filter to smooth the sky-terrain boundary 
+    jump_indices_mf2 = median_filter(jump_indices2, size=10)
+    
+    return jump_indices, jump_indices_mf, jump_indices2, jump_indices_mf2
+    
+
+def mask_fisheye_image(fisheye_img, rectangular_mask, xc, yc, radius):
+    """
+    Mask a fisheye image based on a rectangular mask and the given center and 
+    radius coornidates of the original fisyeye image. 
+
+    This function first converts the xy coordinates in the fisheye image to 
+    polar coordinates (r, theta), then mask out pixels beyond the field of view 
+    radius and terrian given the input retangular terrian mask. 
+    
+    :param fisheye_img: A 2D numpy array representing the fisheye image.
+    :param rectangular_mask: A 2D numpy array representing the rectangular mask.
+    :param xc: The x-coordinate of the center of the fisheye image.
+    :param yc: The y-coordinate of the center of the fisheye image.
+    :param radius: The radius for the fisheye image's field of view.
+
+    :return: A 2D numpy array representing the masked fisheye image.
+    :rtype: numpy.ndarray
+    """
+
+    masked_fisheye = fisheye_img.copy()
+    
+    # Convert the xy coordinate in the fisheye image to polar r and theta
+    x, y = np.meshgrid(*map(np.arange, list(reversed(fisheye_image.shape))))  
+    R_grid = np.sqrt((x-xc)**2 + (y-yc)**2).astype(int)
+    Theta = np.arctan2(y-yc, x-xc) # -pi to pi
+    Theta = (np.where(Theta < 0, Theta + 2*np.pi, Theta)*radius).astype(int) 
+    
+    # Set pixels beyond the fisheye's FoV to nan
+    masked_fisheye[np.where(R_grid>radius)] = np.nan 
+
+    # Mask out the terrian within the FoV
+    indices = np.where(~np.isnan(masked_fisheye))   
+
+    for i,j in zip(*indices):
+        r = R_grid[i,j]
+        theta = Theta[i,j]
+        if np.isnan(rectangular_mask[r,theta]):
+            masked_fisheye[i,j] = np.nan
+            
+    return masked_fisheye
+
+
 #--------------------------------------------------------------------------#
 #				    Read in files and image preparation                    #
 #--------------------------------------------------------------------------#
@@ -106,53 +201,10 @@ fisheye_image = fits.open(ref_img, uint=False)[0].data
 # Transform the fisheye image to a rectangular image
 rectangular_image = fisheye_to_rectangular(fisheye_image, Xc, Yc, R)
 
-# Set the default drop indices to be the first nan in each column 
-nan_mask = np.isnan(rectangular_image)
-jump_indices = np.argmax(nan_mask, axis=0)
-for col in range(rectangular_image.shape[1]):
-    rectangular_image[jump_indices[col]:,col] = np.nan
-
-#--------------------------------------------------------------------------#
-#				    Finding the sky-terrain boundary                       #
-#--------------------------------------------------------------------------#
-    
-# Step 1: Find the location of the first drop beyond the threshold in each column
-differences = np.abs(np.diff(rectangular_image, n=5, axis=0))
-threshold1 = 0.6
-
-for col in range(differences.shape[1]):
-    
-    jump_index = np.where(differences[:, col] > threshold1)[0]
-    
-    if jump_index.size > 0:
-        jump_indices[col] = jump_index[0]
+# Finding the sky-terrain boundary 
+jump_indices, jump_indices_mf, jump_indices2, jump_indices_mf2 = terrain_boundary_mask(rectangular_image)
 
 
-# Step 2: Clip and median filter the jump_indices
-jump_indices = np.clip(jump_indices, 0, R)
-jump_indices_mf = median_filter(jump_indices, size=80)
-
-
-# Step 3: Fine tune the sky-terrain boundary by finding the drop near 
-# the median filtered location
-threshold2 = 0.5
-jump_indices2 = jump_indices_mf.copy()
-
-for col in range(differences.shape[1]):
-    
-    jump_index = np.where(differences[:, col] > threshold2)[0]
-    
-    if jump_index.size > 0:
-        a = np.min(np.abs(jump_index-jump_indices_mf[col]))
-        b = np.abs(R-jump_indices_mf[col])
-        
-        if a < b:
-            w = np.argmin(np.abs(jump_index-jump_indices_mf[col]))
-            jump_indices2[col] = jump_index[w]
-
-
-# Step 4: Final median filter to smooth the sky-terrain boundary 
-jump_indices_mf2 = median_filter(jump_indices2, size=10)
 
 
 
@@ -163,38 +215,35 @@ fig, axs = plt.subplots(nrows=5, ncols=1, figsize=(15, 10), sharex=True, sharey=
 #plt.style.use('dark_background')
 #plt.rcParams['image.cmap'] = 'NPS_mag'
 #cmap = copy.copy(mpl.colormaps["NPS_mag"])
-#cmap.set_bad(color='black')
-    
+#cmap.set_bad(color='black')    
 
-#plt.subplot(5, 1, 1)
 axs[0].imshow(rectangular_image, cmap='gray')#, vmin=14, vmax=24)
 
+rectangular_image1 = rectangular_image.copy()
+mask = np.arange(rectangular_image.shape[0])[:, None] >= jump_indices
+rectangular_image1[mask] = np.nan
+axs[1].imshow(rectangular_image1, cmap='gray')
+
 rectangular_image2 = rectangular_image.copy()
-for col in range(rectangular_image.shape[1]):
-    rectangular_image2[jump_indices[col]:,col] = np.nan
-    
-#plt.subplot(5, 1, 2)
-axs[1].imshow(rectangular_image2, cmap='gray')
+mask = np.arange(rectangular_image.shape[0])[:, None] >= jump_indices_mf
+rectangular_image2[mask] = np.nan
+axs[2].imshow(rectangular_image2, cmap='gray')
 
 rectangular_image3 = rectangular_image.copy()
-for col in range(rectangular_image.shape[1]):
-    rectangular_image3[jump_indices_mf[col]:,col] = np.nan
-
-#plt.subplot(5, 1, 3)
-axs[2].imshow(rectangular_image3, cmap='gray')
+mask = np.arange(rectangular_image.shape[0])[:, None] >= jump_indices2
+rectangular_image3[mask] = np.nan
+axs[3].imshow(rectangular_image3, cmap='gray')
 
 rectangular_image4 = rectangular_image.copy()
-for col in range(rectangular_image.shape[1]):
-    rectangular_image4[jump_indices2[col]:,col] = np.nan
-    
-#plt.subplot(5, 1, 4)
-axs[3].imshow(rectangular_image4, cmap='gray')
+mask = np.arange(rectangular_image.shape[0])[:, None] >= jump_indices_mf2
+rectangular_image4[mask] = np.nan
+axs[4].imshow(rectangular_image4, cmap='gray')
 
-rectangular_image5 = rectangular_image.copy()
-for col in range(rectangular_image.shape[1]):
-    rectangular_image5[jump_indices_mf2[col]:,col] = np.nan
 
-#plt.subplot(5, 1, 5)
-axs[4].imshow(rectangular_image5, cmap='gray')
+#Creat the mask image
+masked_fisheye = mask_fisheye_image(fisheye_image, rectangular_image4, Xc, Yc, R)
 
+
+plt.figure()
+plt.imshow(masked_fisheye, cmap='gray')
 plt.show(block=False)

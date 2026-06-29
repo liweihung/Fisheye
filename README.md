@@ -4,6 +4,8 @@
 
 > Hung, L.-W., White, J., Joyce, D., Anderson, S. J., & Banet, B. (2024). Fisheye Night Sky Imager: A Calibrated Tool to Measure Night Sky Brightness. *Publications of the Astronomical Society of the Pacific*, 136, 085002. https://doi.org/10.1088/1538-3873/ad6bc1
 
+![Example output: Black Canyon of the Gunnison National Park, 2022-09-24](Images/BLCA_20220924.png)
+
 ---
 
 ## Background

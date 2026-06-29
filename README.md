@@ -1,4 +1,48 @@
-# Fisheye
+# Fisheye Night Sky Imager Data Processing Pipeline
+
+*Developed and maintained by [Li-Wei Hung](mailto:li-wei_hung@nps.gov)*
+
+> Hung, L.-W., White, J., Joyce, D., Anderson, S. J., & Banet, B. (2024). Fisheye Night Sky Imager: A Calibrated Tool to Measure Night Sky Brightness. *Publications of the Astronomical Society of the Pacific*, 136, 085002. https://doi.org/10.1088/1538-3873/ad6bc1
+
+---
+
+## Background
+
+The NPS Fisheye Night Sky Imager is a camera system developed by the Night Skies Team of the U.S. National Park Service to measure and monitor night sky brightness in national parks. It comprises a Sony IMX455 CMOS sensor housed in a ZWO ASI6200MM camera, a Johnson V filter, and a Sigma 8 mm F3.5 fisheye lens — all commercially available components. The fisheye lens captures the entire sky in a single 30-second exposure. This open-source pipeline processes the resulting images through flat-field correction, astrometric plate solving, photometric calibration using Hipparcos standard stars, positional calibration, median filtering, and final projection in both fisheye and Hammer equal-area views, with a photometric calibration uncertainty of 0.12 mag.
+
+---
+
+## Dependencies
+
+- Python 3.12.12
+- Git
+- [Astrometry.net](http://nova.astrometry.net/) account and API key
+
+> ⚠️ Never commit your Astrometry.net API key to the repository.
+
+---
+
+## Getting Started
+
+Clone the repository and install dependencies:
+
+```bash
+git clone https://github.com/liweihung/Fisheye.git
+cd Fisheye/Scripts
+conda create --name fisheye python=3.12.12
+conda activate fisheye
+pip install poetry
+poetry install
+```
+
+Before each session, pull the latest changes:
+```bash
+git pull
+```
+
+### Contributing
+Pull requests are welcome. See GitHub's [Contributing to a project](https://docs.github.com/en/get-started/exploring-projects-on-github/contributing-to-a-project) guide for details.
+
 
 ## Running the Process
 There are two options for running the Fisheye post-process. <br>

@@ -6,7 +6,7 @@
 
 ## Background
 
-The NPS Fisheye Night Sky Imager is a camera system developed by the Night Skies Team of the U.S. National Park Service to measure and monitor night sky brightness in national parks. It comprises a Sony IMX455 CMOS sensor housed in a ZWO ASI6200MM camera, a Johnson V filter, and a Sigma 8 mm F3.5 fisheye lens — all commercially acquired components. The fisheye lens captures the entire sky in a single 30-second exposure. This open-source pipeline processes the resulting images through flat-field correction, astrometric plate solving, photometric calibration using Hipparcos standard stars, positional calibration, median filtering, and final projection in both fisheye and Hammer equal-area views, with a photometric calibration uncertainty of 0.12 mag.
+The NPS Fisheye Night Sky Imager is a camera system developed by the Night Skies Team of the U.S. National Park Service to measure and monitor night sky brightness in national parks. It comprises a Sony IMX455 CMOS sensor housed in a ZWO ASI6200MM camera, a Johnson V filter, and a Sigma 8 mm F3.5 fisheye lens — all commercially acquired components. The fisheye lens captures the entire sky in a single 30-second exposure. This open-source pipeline processes the resulting images through basic data reduction, astrometric plate solving, photometric calibration using Hipparcos standard stars, positional calibration, median filtering, and final projection in both fisheye and Hammer equal-area views, with a photometric calibration uncertainty of 0.12 mag.
 
 ---
 
@@ -166,7 +166,7 @@ projection.py
 
 ## Acknowledgments
 
-This project made use of the [Astrometry.net](http://nova.astrometry.net/) system (Lang et al. 2010) for automatic identification and calibration of astronomical images, and [SAOImageDS9](https://sites.google.com/cfa.harvard.edu/saoimageds9/home) for preliminary image analysis. The author thanks Erik Longuepee for his consultation on Python environment and dependency management.
+This project made use of the [Astrometry.net](http://nova.astrometry.net/) system (Lang et al. 2010) for automatic identification and calibration of astronomical images, and [SAOImageDS9](https://sites.google.com/cfa.harvard.edu/saoimageds9/home) for preliminary image analysis. The author thanks Erik Longuepee for his advice on Python environment and dependency management.
 
 ---
 

@@ -105,6 +105,10 @@ Edit `mask_input.py` with your camera name, then run:
 python mask.py
 ```
 
+| Script | Description |
+|---|---|
+| `mask.py` | Generates a binary mask defining the valid fisheye field of view |
+
 ### Step 2 — Process all images
 Edit `process_input.py` with your deployment metadata and your Astrometry.net API key, then run:
 
@@ -157,6 +161,12 @@ median_filter.py
 projection.py
     └── mask + all calibrated images → fisheye.png & hammer.png
 ```
+
+---
+
+## Acknowledgments
+
+This project made use of the [Astrometry.net](http://nova.astrometry.net/) system (Lang et al. 2010) for automatic identification and calibration of astronomical images, and [SAOImageDS9](https://sites.google.com/cfa.harvard.edu/saoimageds9/home) for preliminary image analysis. The author thanks Erik Longuepee for his consultation on Python environment and dependency management.
 
 ---
 

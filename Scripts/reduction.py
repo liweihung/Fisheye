@@ -3,7 +3,7 @@
 #
 #NPS Night Skies Program
 #
-#Last updated: 2021/01/22
+#Last updated: 2026/07/06
 #
 #This script performs basic image reduction and applies mask on the fisheye 
 #image data collected by the NPS Night Skies Program. The script corrects for:
@@ -54,22 +54,25 @@ def main():
 
 	
 	#Bias - generate averaged bias 
-	biaslist = [
-		fits.open(i,uint=False)[0].data 
-		for i in glob(p.data_raw+'Bias*.fit')]
+	biaslist = []                                                     
+	for i in glob(p.data_raw+'Bias*.fit'):                            
+		with fits.open(i, uint=False, memmap=False) as hdul:          
+			biaslist.append(hdul[0].data.astype(float, copy=True))    
 	bias = n.average(biaslist,axis=0)
 	
 	
 	#Dark - average dark is bias subtracted and linearity response corrected
-	darklist = [
-		fits.open(i,uint=False)[0].data 
-		for i in glob(p.data_raw+'Dark*.fit')]
+	darklist = []                                                     
+	for i in glob(p.data_raw+'Dark*.fit'):                            
+		with fits.open(i, uint=False, memmap=False) as hdul:          
+			darklist.append(hdul[0].data.astype(float, copy=True))    
 	dark_bias_subtracted = n.average(darklist,axis=0)-bias     
 	dark = dark_bias_subtracted * n.interp(dark_bias_subtracted,xp,fp) 
 	
 	
 	#Mask - read in the fisheye mask
-	mask = fits.open(p.mask,uint=False)[0].data
+	with fits.open(p.mask, uint=False, memmap=False) as hdul:        
+		mask = hdul[0].data.astype(float, copy=True) 
 	
 	
 	#Output - create calibrated images folder
@@ -80,14 +83,18 @@ def main():
 	for k in flatfile.keys(): 							#loop through filters
 		
 		try: 
-			flat = fits.open(flatfile[k],uint=0)[0].data
+			with fits.open(flatfile[k], uint=0, memmap=False) as hdul:  # <-- CHANGED
+				flat = hdul[0].data.astype(float, copy=True)       
 			flat /= n.nanmean(flat)
 		except: continue
 		
+		
 		for f in glob(p.data_raw+f'Light*{k}*.fit'):
 		
-			image  = fits.open(f,uint=False)[0]
-			light  = image.data 					#science image
+			with fits.open(f,uint=False) as hdulist:
+				light = hdulist[0].data.astype(float, copy=True) #science image
+				hdr   = hdulist[0].header.copy()					
+
 			light *= mask							#apply fisheye mask
 			light -= bias							#subtract bias
 			light *= n.interp(light,xp,fp)			#correct for linearity
@@ -95,7 +102,6 @@ def main():
 			light  = n.clip(light,0.1,n.inf)		#replace negatives w/ 1
 			light /= flat							#divide by flat
 			
-			hdr = image.header
 			if p.update_headers:
 				hdr['Camera']   = p.camera 
 				hdr['SITELONG'] = p.longitude

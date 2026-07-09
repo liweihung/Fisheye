@@ -40,7 +40,15 @@ from scipy.ndimage import median_filter
 
 # Local Source
 import colormaps
-import process_input as p
+#import process_input as p
+
+import importlib
+f = glob('../Data_processed/GUIS_20240504B/process_input.py')
+import shutil
+shutil.copy(f[0], 'process_input_mask.py')
+import process_input_mask as p
+importlib.reload(p)
+print(p.data_cal)
 
 #-----------------------------------------------------------------------------#
 def fisheye_to_rectangular(fisheye_img, xc, yc, radius):
@@ -94,31 +102,33 @@ def fisheye_to_rectangular(fisheye_img, xc, yc, radius):
     return output_img
 
 
-def terrain_boundary_mask(rectangular_img, t1=0.6, t2=0.5):
+def terrain_boundary_mask(rectangular_img, t1=0.6, m1=80, t2=0.5, m2=10):
     """
     Detects the sky-terrain boundary in a 2D rectangular image using a multi-step 
     thresholding and filtering approach.
 
     This function identifies the vertical boundary between sky and terrain by:
     1. Masking out regions below the first NaN in each column.
-    2. Detecting sharp vertical drops in pixel values using a first threshold (t1).
+    2. Detecting sharp vertical drops in pixel values using a high threshold (t1).
     3. Refining the boundary using a median filter and a second, lower threshold (t2).
     4. Smoothing the final boundary with another median filter.
 
     Args:
         rectangular_img (np.ndarray): 2D array representing the image, where NaNs 
-                                      indicate invalid or masked regions.
+            indicate invalid or masked regions.
         t1 (float, optional): Threshold for initial boundary detection using 
-                              higher sensitivity. Defaults to 0.6.
+            higher sensitivity. Defaults to 0.6.
+        m1 (int, optional): Window size for the first median filter. Defaults to 80.
         t2 (float, optional): Threshold for fine-tuning the boundary near the 
-                              median-filtered estimate. Defaults to 0.5.
+            median-filtered estimate. Defaults to 0.5.
+        m2 (int, optional): Window size for the second median filter. Defaults to 10.
 
     Returns:
         list of np.ndarray: A list containing four 1D arrays (one per column):
-            - `jump_indices`: Initial boundary estimate based on NaNs and t1.
-            - `jump_indices_mf`: Median-filtered version of `jump_indices`.
-            - `jump_indices2`: Refined boundary using t2 near the median-filtered estimate.
-            - `jump_indices_mf2`: Final smoothed boundary after second median filter.
+            - jump_indices: Initial boundary estimate based on NaNs and t1.
+            - jump_indices_mf: Median-filtered version of `jump_indices`.
+            - jump_indices2: Refined boundary using t2 near the median-filtered estimate.
+            - jump_indices_mf2: Final smoothed boundary after second median filter.
     """
 
     # Set the default drop indices to be the first nan in each column 
@@ -144,7 +154,7 @@ def terrain_boundary_mask(rectangular_img, t1=0.6, t2=0.5):
             
     # Step 2: Clip and median filter the jump_indices
     jump_indices = np.clip(jump_indices, 0, R)
-    jump_indices_mf = median_filter(jump_indices, size=80)
+    jump_indices_mf = median_filter(jump_indices, size=m1)
     
     # Step 3: Fine tune by finding the drop near the median filtered location
     threshold2 = t2
@@ -163,7 +173,7 @@ def terrain_boundary_mask(rectangular_img, t1=0.6, t2=0.5):
                 jump_indices2[col] = jump_index[w]
     
     # Step 4: Final median filter to smooth the sky-terrain boundary 
-    jump_indices_mf2 = median_filter(jump_indices2, size=10)
+    jump_indices_mf2 = median_filter(jump_indices2, size=m2)
     
     return [jump_indices, jump_indices_mf, jump_indices2, jump_indices_mf2]
     
@@ -304,7 +314,7 @@ mask[np.where(np.isnan(masked_fisheye))] = np.nan
 #--------------------------------------------------------------------------#
 
 # Plot
-plot(rectangular_image, jump_indices, color=False, show=True)
+plot(rectangular_image, jump_indices, color=False, show=False)
 plot(rectangular_image, jump_indices, color=True, show=True)
 
 

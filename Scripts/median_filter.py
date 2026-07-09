@@ -37,7 +37,8 @@ def main():
 	"""
 	#read in the pixel scale associated with the binning factor
 	imgfile = glob(p.data_cal+'Light*')[0]
-	binning = fits.open(imgfile,uint=False)[0].header['XBINNING']
+	with fits.open(imgfile, uint=False, memmap=False) as hdul:
+		binning = hdul[0].header['XBINNING'] 
 	F = pd.read_csv(p.calibration+'platescale.csv',index_col=0)
 	pixscale = F['Scale'][binning] #[arcsec/pix]
 	
@@ -49,9 +50,9 @@ def main():
 	print('Applying 1-degree median filter to image:')
 	for f in glob(p.data_cal+'Light*[!MF].fit'):
 		print(f[l:])
-		image = fits.open(f,uint=False)
-		hdr = image[0].header
-		filtered_img = median_filter(image[0].data, size=w)
+		with fits.open(f, uint=False, memmap=False) as image:
+			hdr = image[0].header.copy()
+			filtered_img = median_filter(image[0].data, size=w)
 		hdr['history'] = f'Median filtered with 1 degree ({w} pixel) window'
 		fits.writeto(f[:l]+'MF_'+f[l:],filtered_img,header=hdr,overwrite=1)
 

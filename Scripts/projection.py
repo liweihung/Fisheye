@@ -168,9 +168,10 @@ def main():
     for f in glob(p.data_cal+'Light*.fit'):
 
         print('projecting ' + f[len(p.data_cal):])
-        imgf = fits.open(f, uint=False)[0]
-        hdr = imgf.header
-        img = imgf.data[yc-r0:yc+r0, xc-r0:xc+r0]
+        with fits.open(f, uint=False, memmap=False) as imgf_list:      
+            hdr = imgf_list[0].header.copy()                           
+            full_img = imgf_list[0].data.astype(float, copy=True)      
+        img = full_img[yc-r0:yc+r0, xc-r0:xc+r0]
         img_hammer = rotate(img.astype('float32'), -90, cval=n.nan)[inds, :]
         utc = utc_time = datetime.strptime(hdr['DATE-OBS'], '%Y-%m-%dT%H:%M:%S.%f')
         t = get_local_time_from_utc(hdr['SITELAT'], hdr['SITELONG'], utc)

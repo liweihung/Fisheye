@@ -346,8 +346,9 @@ def main():
 	#						Zenith angle and airmass 						   #
 	#--------------------------------------------------------------------------#
 	#Open the original image and get the observing time and location
-	hdu_orig = fits.open(glob(p.data_cal+p.reference)[0], fix=False)[0] 
-	hdr = hdu_orig.header
+	with fits.open(glob(p.data_cal+p.reference)[0], fix=False, memmap=False) as hdu_orig_list: 
+		hdr = hdu_orig_list[0].header.copy()                                                   
+		orig_data = hdu_orig_list[0].data.astype(float, copy=True)                              
 	time = Time(hdr['DATE-OBS'])  		#UTC observing date and time
 	c = EarthLocation(lon=hdr['SITELONG'] , lat=hdr['SITELAT'])
 	lat, long = c.lat.deg, c.lon.deg 	#degrees
@@ -360,7 +361,7 @@ def main():
 	#--------------------------------------------------------------------------#
 	#photometry with Gaussian PSF
 	T.field_x, T.field_y, T.Flux, T.Background, T['deltap'],T['sigma'],T['SN']=\
-	photometry(T.field_x, T.field_y, hdu_orig.data, hdr['EXPTIME'])
+	photometry(T.field_x, T.field_y, orig_data, hdr['EXPTIME'])
 	
 	#--------------------------------------------------------------------------#
 	#						Zeropoint and extinction fitting				   #

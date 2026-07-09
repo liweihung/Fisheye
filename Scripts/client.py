@@ -414,15 +414,15 @@ if __name__ == '__main__':
             url = opt.server.replace('/api/', '/corr_file/%i' % opt.solved_id)
             retrieveurls.append((url, opt.corr))
 
-        for url,fn in retrieveurls:
+        for url, fn in retrieveurls:
             print('Retrieving file from', url, 'to', fn)
-            f = urlopen(url)
-            txt = f.read()
-            w = open(fn, 'wb')
-            w.write(txt)
-            w.close()
+            # Nova requires a strict Referer header for programmatic downloads.
+            # See maintainer guidance and docs.
+            req = Request(url, headers={'Referer': 'https://nova.astrometry.net/api/login'})
+            with urlopen(req) as r, open(fn, 'wb') as w:
+                w.write(r.read())
             print('Wrote to', fn)
-
+            
         if opt.annotate:
             result = c.annotate_data(opt.solved_id)
             with open(opt.annotate,'w') as f:

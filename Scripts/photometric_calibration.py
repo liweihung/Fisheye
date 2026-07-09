@@ -51,7 +51,8 @@ def main():
 		
 	#read in the pixel scale associated with the binning factor
 	imgfile = glob(p.data_cal+'Light*')[0]
-	binning = fits.open(imgfile,uint=False)[0].header['XBINNING']
+	with fits.open(imgfile, uint=False, memmap=False) as hdul:   
+		binning = hdul[0].header['XBINNING']
 	P = pd.read_csv(p.calibration+'platescale.csv',index_col=0)
 	pixscale = P['Scale'][binning] #["/pix]
 	
@@ -60,7 +61,7 @@ def main():
 	
 	#brightness calibration
 	for f in glob(p.data_cal+'Light*.fit'):
-		image = fits.open(f,uint=False,mode='update')
+		image = fits.open(f, uint=False, mode='update', memmap=False)
 		hdr = image[0].header
 		image[0].data = zp + psa - 2.5*n.log10(image[0].data/hdr['EXPTIME'])
 		hdr['history'] = f'Zeropoint used for calibration is {zp}'

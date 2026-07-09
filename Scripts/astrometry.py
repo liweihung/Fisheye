@@ -69,7 +69,9 @@ def main():
 
 	ref_img = glob(p.data_cal+p.reference)[0]
 	print("Reference image is: ", ref_img)
-	img = fits.open(ref_img,uint=False)[0].data
+
+	with fits.open(ref_img, uint=False, memmap=False) as hdul:      
+		img = hdul[0].data.astype(float, copy=True)                 
 	
 	for i in xbound:
 		for j in ybound:
@@ -93,7 +95,7 @@ def main():
 									--scale-err 10.0 \
 									--corr "{fn[:-4]}_corr.fit" \
 									--calibrate "{fn[:-4]}_calib.txt"'
-
+	
 			t1 = datetime.now()
 			os.system(cmd)
 			t2 = datetime.now()
@@ -106,15 +108,19 @@ def main():
 	D = pd.DataFrame()
 	for i,f in enumerate(fcor):
 		crop_shift = [int(s) for s in re.findall(r'\d+', f)[-2:]] 
-		hdu = fits.open(f)
-		F = pd.DataFrame.from_records(hdu[1].data).astype('float64').round(3)
-		F['field_x'] += crop_shift[0] - 1 #Start counting from 0 instead of 1
-		F['field_y'] += crop_shift[1] - 1 #Offset to the uncroped img position
-		D = pd.concat([D,F],axis=0,join='outer')
-		#copy the center RA and DEC coordinates to a new file
-		if crop_shift == [xbound[int(len(xbound)/2)],ybound[int(len(xbound)/2)]]:
-			shutil.copyfile(f[:-8]+'calib.txt',p.data_cal+'center.txt')
-		hdu.close()
+		try:
+			with fits.open(f, memmap=False) as hdu:                     
+				F = pd.DataFrame.from_records(hdu[1].data).astype('float64').round(3) 
+				F['field_x'] += crop_shift[0] - 1 #Start counting from 0 instead of 1
+				F['field_y'] += crop_shift[1] - 1 #Offset to the uncroped img position
+				D = pd.concat([D,F],axis=0,join='outer')
+				#copy the center RA and DEC coordinates to a new file
+				if crop_shift == [xbound[int(len(xbound)/2)],ybound[int(len(xbound)/2)]]:
+					shutil.copyfile(f[:-8]+'calib.txt',p.data_cal+'center.txt')
+		except OSError as e:
+			print(f"Skipping file {f}: {e}")
+			continue
+
 		
 	D.rename(columns={'index_ra':'RA','index_dec':'DE'},inplace=True)
 	D.rename(columns={'FLUX':'Flux','BACKGROUND':'Background'},inplace=True)

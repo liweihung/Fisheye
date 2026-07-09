@@ -60,8 +60,8 @@ def main():
 	ori = round(center['orientation'],1)
 	
 	#Compute zenith RA and Dec based on the observing location and time
-	hdu = fits.open(glob(p.data_cal+p.reference)[0], fix=False)
-	hdr = hdu[0].header
+	with fits.open(glob(p.data_cal+p.reference)[0], fix=False, memmap=False) as hdu:  
+		hdr = hdu[0].header.copy()
 	time = Time(hdr['DATE-OBS'])  #UTC observing date and time
 	c = EarthLocation(lon=hdr['SITELONG'] , lat=hdr['SITELAT'])
 	zenith_ra = time.sidereal_time('mean',longitude=c.lon.deg).degree
@@ -83,7 +83,7 @@ def main():
 	
 	#Position calibration
 	for f in glob(p.data_cal+'Light*.fit'):
-		image = fits.open(f,uint=False,mode='update')
+		image = fits.open(f, uint=False, mode='update', memmap=False)
 		
 		#correct for fisheye lens distorsion - need to be implemented
 		pass	

@@ -18,3 +18,4 @@ Scripts/test.txt
 __pycache__/
 *.docx
 *xlsx
+Scripts/process_input.py

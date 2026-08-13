@@ -21,6 +21,7 @@ timezonefinder = "^6.5.2"
 tqdm = "^4.66.5"
 ipython = "^8.29.0"
 opencv-python = "^4.10.0.84"
+openpyxl = "^3.1.5"
 
 
 [build-system]

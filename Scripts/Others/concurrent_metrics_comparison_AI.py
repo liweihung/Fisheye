@@ -3,31 +3,50 @@
 #
 #NPS Night Skies Program
 #
-#Last updated: 2026/08/27
+#Last updated: 2026/09/24
 #
-#This script computes the median zenith brightness (mag per square arcsec),
-#horizontal illuminance (mlx), maximum vertical illuminance (mlx), and
-#all-sky Light Pollution Ratio (ALR) of each fisheye image listed in
-#concurrent_observations.xlsx, using the same math as metrics.py (including
-#the calibrated, non-equidistant theta(r) relationship from theta_r.xlsx),
-#and pairs each with the corresponding CCD zenith brightness
-#(ZENITH_LUM_MSA), CCD horizontal illuminance (HORIZ_MLX), CCD maximum
-#vertical illuminance (MAXVERT_MLX), and CCD ALR (ALR_POS) from the CCD
-#database. All columns from concurrent_observations.xlsx are carried
-#through, with eight new columns added: fisheye/CCD zenith brightness,
-#fisheye/CCD horizontal illuminance, fisheye/CCD maximum vertical
-#illuminance, and fisheye/CCD ALR.
+#This script computes the median zenith brightness, horizontal illuminance,
+#maximum vertical illuminance, all-sky Light Pollution Ratio (ALR), Mean
+#all-sky brightness, sky brightness percentiles (P1/P50/P99), percentage of
+#naked-eye-visible stars (Star), and a synthetic Sky Quality Meter reading
+#(SQM_syn) for each fisheye image listed in concurrent_observations.xlsx,
+#using the same math as metrics.py (including the calibrated,
+#non-equidistant theta(r) relationship from theta_r.xlsx), and pairs each
+#with the corresponding CCD metric from the CCD database:
+#   fisheye          CCD column
+#   ---------------  ----------------
+#   Zenith           ZENITH_LUM_MSA
+#   Horizontal       HORIZ_MLX
+#   Vertical Max     MAXVERT_MLX
+#   ALR              ALR_POS
+#   Mean             MEANLUM_ART_MAGS
+#   P1               P01_ALL_MAGS
+#   P50              P50_ALL_MAGS
+#   P99              P99_ALL_MAGS
+#   Star             VISSTARS_PCT
+#   SQM_syn          SYN_SQM
 #
-#Matching metrics.py, zenith brightness and ALR use the terrain mask
-#(mask.fit), so that they reflect only the actually-visible sky at this
-#site. Horizontal and vertical illuminance use a simple 90-degree horizon
-#mask instead, so that they reflect the full hemisphere, including light
-#from terrain foreground. Per-pixel solid angle is computed on a Cartesian
-#pixel grid as dOmega = dTheta^2 (no azimuthal/sin(theta) polar-grid
-#correction), matching metrics.py.
+#All columns from concurrent_observations.xlsx are carried through, with a
+#fisheye/CCD pair of columns added for each metric above. If the CCD
+#database also has a real (measured, not synthetic) SQM column, it is
+#appended as an extra CCD-only column at the end, since there is no
+#fisheye equivalent to pair it with.
+#
+#Matching metrics.py: Zenith, ALR, Mean, and the percentiles use the
+#terrain mask (mask.fit), so that they reflect only the actually-visible
+#sky at this site. Horizontal and vertical illuminance use a simple
+#90-degree horizon mask instead, so that they reflect the full hemisphere,
+#including light from terrain foreground. Per-pixel solid angle is
+#dOmega = sin(Theta)*dTheta/r (with the r=0 limit dTheta^2), matching
+#metrics.py's build_calibrated_geometry(). Star is predicted from ALR via
+#star_visibility_model_AI.predict_visibility(). SQM_syn is computed via
+#metrics.py's synthetic_sqm(), using the SQM's angular response
+#(sqm_model_AI.sqm_response()) and the same SQM-V offset (0.07).
 #
 #This script lives in Scripts/Others/, one level deeper than the other
 #pipeline scripts in Scripts/, so its relative paths climb one extra level.
+#star_visibility_model_AI.py and sqm_model_AI.py live in Scripts/, so '..'
+#is added to sys.path before importing them.
 #
 #CCD values are matched using both the CCD Dataset (DNIGHT) and CCD Dset
 #columns from concurrent_observations.xlsx, since a single DNIGHT can
@@ -64,16 +83,16 @@
 #	    Fisheye Dataset)
 #	(6) data_cal+'mask.fit' -- terrain mask for each fisheye dataset
 #	(7) ../../Performance/Concurrent_observations/
-#	    Data_summary_CCD_modified.xlsx -- CCD database, for
-#	    ZENITH_LUM_MSA, HORIZ_MLX, MAXVERT_MLX, and ALR_POS
+#	    Data_summary_CCD_modified.xlsx -- CCD database, for the CCD
+#	    columns listed above, plus SQM if present
 #
 #Output:
 #   (1) ../../Performance/Concurrent_observations/
 #       concurrent_metric_comparison.xlsx -- all columns from
-#       concurrent_observations.xlsx, plus fisheye/CCD zenith brightness,
-#       fisheye/CCD horizontal illuminance, fisheye/CCD maximum vertical
-#       illuminance, and fisheye/CCD ALR, with column widths auto-sized to
-#       fit their content and color-coded by instrument
+#       concurrent_observations.xlsx, plus fisheye/CCD pairs for every
+#       metric listed above (and a CCD-only SQM column if available), with
+#       column widths auto-sized to fit their content and color-coded by
+#       instrument
 #
 #History:
 #	Li-Wei Hung -- Created
@@ -86,6 +105,11 @@ from astropy.io import fits
 from openpyxl.styles import Alignment, Font
 from openpyxl.utils import get_column_letter
 from scipy.interpolate import interp1d
+
+import sys
+sys.path.append('..')
+from star_visibility_model_AI import predict_visibility
+from sqm_model_AI import sqm_response
 
 #-----------------------------------------------------------------------------#
 #                              File locations                                 #
@@ -105,8 +129,7 @@ CONCURRENT_OBS_PATH = '../../Performance/Concurrent_observations/concurrent_obse
 #Fisheye database (Log sheet), for the Camera column
 DATA_SUMMARY_PATH = '../../Performance/Concurrent_observations/Data_summary_fisheye_20260827.xlsx'
 
-#CCD database location, for ZENITH_LUM_MSA, HORIZ_MLX, MAXVERT_MLX, and
-#ALR_POS
+#CCD database location
 NPMAPS_PATH = '../../Performance/Concurrent_observations/Data_summary_CCD_modified.xlsx'
 
 #Output file
@@ -116,6 +139,32 @@ OUTPUT_PATH = '../../Performance/Concurrent_observations/concurrent_metric_compa
 #metrics.py
 VERTICAL_STEP_DEG = 5
 
+#Natural reference luminance [ucd/m^2], for ALR, matching metrics.py
+NATURAL_REFERENCE = 250
+
+#SQM-V conversion factor [mag/arcsec^2], matching metrics.py's
+#synthetic_sqm() default
+SQM_V_OFFSET = 0.07
+
+#Fisheye metric name -> corresponding CCD column name in the CCD database
+CCD_COLUMNS = {
+	'Zenith':       'ZENITH_LUM_MSA',
+	'Horizontal':   'HORIZ_MLX',
+	'Vertical Max': 'MAXVERT_MLX',
+	'ALR':          'ALR_POS',
+	'Mean':         'MEANLUM_ART_MAGS',
+	'P1':           'P01_ALL_MAGS',
+	'P50':          'P50_ALL_MAGS',
+	'P99':          'P99_ALL_MAGS',
+	'Star':         'VISSTARS_PCT',
+	'SQM_syn':      'SYN_SQM',
+}
+
+#CCD-only column, with no fisheye equivalent: a real (measured, not
+#synthetic) SQM reading, listed as an extra column at the end if present
+#in the CCD database
+CCD_ONLY_COLUMN = 'SQM'
+
 #Text color (ARGB hex, no leading '#') for fisheye vs. CCD derived value
 #columns in the output .xlsx
 FISHEYE_TEXT_COLOR = 'FFCC5500'  #dark orange
@@ -123,36 +172,40 @@ CCD_TEXT_COLOR = 'FF595959'	  #dark gray
 
 #Columns to center-align in the output .xlsx
 CENTER_ALIGN_COLS = ['CCD Dset', 'Date', 'CCD Mid Obs Time (LMT)',
-					 'Fisheye Obs Time (LMT)', 'Time Difference (min)',
-					 'F Zenith', 'C Zenith', 'F Horizontal', 'C Horizontal',
-					 'F Vertical Max', 'C Vertical Max', 'F ALR', 'C ALR']
+					 'Fisheye Obs Time (LMT)', 'Time Difference (min)'] + \
+					['F '+m for m in CCD_COLUMNS] + ['C '+m for m in CCD_COLUMNS] + \
+					['C '+CCD_ONLY_COLUMN]
 
 #Columns to force to display 2 decimal places, even for whole numbers
-DECIMAL_COLS = ['F Zenith', 'C Zenith', 'F Horizontal', 'C Horizontal',
-				'F Vertical Max', 'C Vertical Max', 'F ALR', 'C ALR']
+DECIMAL_COLS = ['F '+m for m in CCD_COLUMNS if m != 'Star'] + \
+			   ['C '+m for m in CCD_COLUMNS if m != 'Star'] + \
+			   ['C '+CCD_ONLY_COLUMN]
+
+#All metric columns (including Star, which is excluded from DECIMAL_COLS)
+#that should share a single uniform column width
+METRIC_COLS = ['F '+m for m in CCD_COLUMNS] + ['C '+m for m in CCD_COLUMNS] + \
+			  ['C '+CCD_ONLY_COLUMN]
 
 #-----------------------------------------------------------------------------#
 
 def zenith(img, r, a=4.75):
 	"""
-	Calculate the median zenith brightness, identical to metrics.py's
-	zenith() function.
+	Median zenith brightness, identical to metrics.py's zenith() function.
 
 	Parameters
 	----------
 	img : 2D array
-		Fisheye image, masked with the terrain mask, calibrated in mag
-		per square arcsec.
+		Fisheye image, masked with the terrain mask, calibrated in
+		mag/arcsec^2.
 	r : 2D array
 		Pixel radius from the image center, same shape as img.
 	a : number, optional
-		Radius in pixels; 1 pix = 379 arcsec; aperture diameter should be
-		set to about 1 degree, comparable to CCD zenith aperture.
+		Aperture radius in pixels (~1 degree). Defaults to 4.75.
 
 	Returns
 	-------
 	zenith_mag : float
-		Median zenith brightness in mag per square arcsec.
+		Median zenith brightness [mag/arcsec^2].
 	"""
 	zenith_mag = round(n.median(img[n.where(r<a)]), 2)
 	return zenith_mag
@@ -160,9 +213,9 @@ def zenith(img, r, a=4.75):
 
 def load_theta_r_calibration(path):
 	"""
-	Load the experimentally measured theta(r) calibration table and build
-	interpolation functions for theta(r) and dtheta/dr(r), identical to
-	metrics.py's load_theta_r_calibration() function.
+	Build theta(r) and dtheta/dr(r) interpolators from an empirically
+	measured calibration table, identical to metrics.py's
+	load_theta_r_calibration() function.
 
 	Parameters
 	----------
@@ -172,12 +225,11 @@ def load_theta_r_calibration(path):
 	Returns
 	-------
 	theta_of_r : callable
-		Function mapping pixel radius [pix] to zenith angle [radians].
+		Pixel radius [pix] -> zenith angle [radians].
 	dtheta_dr_of_r : callable
-		Function mapping pixel radius [pix] to the local derivative
-		d(theta)/dr [radians per pixel] at that radius.
+		Pixel radius [pix] -> local d(theta)/dr [radians/pix].
 	R : float
-		Maximum calibrated pixel radius (at theta=90 degrees).
+		Maximum calibrated pixel radius (theta=90 degrees).
 	"""
 	cal = pd.read_excel(path)
 
@@ -190,8 +242,7 @@ def load_theta_r_calibration(path):
 	r_full = n.concatenate(([0], r_cumulative))
 
 	theta_of_r = interp1d(r_full, n.deg2rad(theta_deg_full),
-						  bounds_error=False,
-						  fill_value=(0, n.nan),
+						  bounds_error=False, fill_value=(0, n.nan),
 						  kind='linear')
 
 	dtheta_dr_per_band = n.deg2rad(step_deg) / delta_pixel
@@ -210,35 +261,36 @@ def load_theta_r_calibration(path):
 
 def build_calibrated_geometry(r, theta_of_r, dtheta_dr_of_r, R):
 	"""
-	Build the per-pixel Theta and dOmega arrays using the calibrated
+	Build per-pixel Theta, dTheta, and dOmega using the calibrated
 	theta(r) relationship, identical to metrics.py's
-	build_calibrated_geometry() function. Since the image is sampled on a
-	Cartesian (not polar) pixel grid, dOmega is simply dTheta^2, with no
-	separate azimuthal or sin(theta) weighting.
+	build_calibrated_geometry() function.
 
 	Parameters
 	----------
 	r : 2D array
 		Pixel radius from the image center.
-	theta_of_r : callable
-		Interpolated theta(r) function, from load_theta_r_calibration().
-	dtheta_dr_of_r : callable
-		Interpolated dtheta/dr(r) function, from load_theta_r_calibration().
+	theta_of_r, dtheta_dr_of_r : callable
+		From load_theta_r_calibration().
 	R : float
-		Maximum calibrated pixel radius (at theta=90 degrees).
+		Maximum calibrated pixel radius (theta=90 degrees); pixels beyond
+		this are outside the field of view and masked to NaN.
 
 	Returns
 	-------
 	Theta : 2D array
-		Zenith angle [radians] at each pixel. NaN beyond the calibrated FoV.
+		Zenith angle [radians]. NaN beyond the field of view.
 	dOmega : 2D array
-		Solid angle [steradians] subtended by each pixel, dOmega = dTheta^2.
-		NaN beyond the calibrated FoV.
+		Solid angle [sr] per pixel: dOmega = sin(Theta)*dTheta/r (limit
+		dTheta^2 at r=0). NaN beyond the field of view.
 	"""
 	Theta = theta_of_r(r)
 	dTheta = dtheta_dr_of_r(r)
 
-	dOmega = dTheta**2
+	dOmega = n.full_like(r, n.nan, dtype=float)
+	on_axis = (r == 0)
+	off_axis = ~on_axis
+	dOmega[off_axis] = n.sin(Theta[off_axis]) * dTheta[off_axis] / r[off_axis]
+	dOmega[on_axis] = dTheta[on_axis]**2
 
 	beyond_fov = r > R
 	Theta[beyond_fov] = n.nan
@@ -247,27 +299,45 @@ def build_calibrated_geometry(r, theta_of_r, dtheta_dr_of_r, R):
 	return Theta, dOmega
 
 
+def mag_to_ucd(mag):
+	"""
+	Convert mag/arcsec^2 to luminance in microcandela per square meter,
+	identical to metrics.py's mag_to_ucd() function.
+
+	Parameters
+	----------
+	mag : float or array
+		Brightness in mag/arcsec^2.
+
+	Returns
+	-------
+	L : float or array
+		Luminance [ucd/m^2].
+	"""
+	return 108.48*n.exp(20.7233-0.92104*mag)
+
+
 def illuminance_horizontal(img, Theta, dOmega):
 	"""
-	Calculate the horizontal illuminance, identical to metrics.py's
+	Horizontal illuminance, identical to metrics.py's
 	illuminance_horizontal() function.
 
 	Parameters
 	----------
 	img : 2D array
 		Fisheye image, masked with the 90-degree horizon mask, calibrated
-		in mag per square arcsec.
+		in mag/arcsec^2.
 	Theta : 2D array
 		Zenith angle [radians] at each pixel, same shape as img.
 	dOmega : 2D array
-		Solid angle [steradians] subtended by each pixel, same shape as img.
+		Solid angle [sr] per pixel, same shape as img.
 
 	Returns
 	-------
 	E_h : float
-		Horizontal illuminance in mlx.
+		Horizontal illuminance [mlx].
 	"""
-	L = 108.48*n.exp(20.7233-0.92104*img) # [ucd m-2], Duriscoe 2016 conversion
+	L = mag_to_ucd(img) #[ucd m-2]
 	dE = L*n.cos(Theta)*dOmega
 	E_h = n.nansum(dE)/1000 #Horizontal illuminance [mlx]
 	return E_h
@@ -275,26 +345,24 @@ def illuminance_horizontal(img, Theta, dOmega):
 
 def precompute_vertical_geometry(Phi, step_deg=5):
 	"""
-	Precompute the azimuth sweep grid and cos(incidence) weighting array
-	used by illuminance_vertical_max(), identical to metrics.py's
-	precompute_vertical_geometry() function.
+	Precompute the azimuth sweep grid and cos(incidence) weighting array,
+	identical to metrics.py's precompute_vertical_geometry() function.
 
 	Parameters
 	----------
 	Phi : 2D array
-		Azimuth [radians] at each pixel, compass convention (0 = North,
-		clockwise through E/S/W).
+		Azimuth [radians] at each pixel, compass convention (0=North,
+		clockwise E/S/W).
 	step_deg : number, optional
 		Azimuth sweep interval in degrees. Defaults to 5.
 
 	Returns
 	-------
 	azimuths_deg : 1D array
-		All facing azimuths swept, in degrees, from 0 up to (but not
-		including) 360.
+		Swept azimuths, 0 to 355 degrees.
 	cos_incidence : 3D array
-		cos(Phi-facing_azimuth) for each swept azimuth, clipped to exclude
-		light arriving from behind the surface. Shape: (n_az, ny, nx).
+		cos(Phi-facing_azimuth) per swept azimuth, clipped >= 0. Shape:
+		(n_az, ny, nx).
 	"""
 	azimuths_deg = n.arange(0, 360, step_deg)
 	facing_azimuths = n.deg2rad(azimuths_deg)
@@ -307,34 +375,32 @@ def precompute_vertical_geometry(Phi, step_deg=5):
 
 def illuminance_vertical_max(img, Theta, dOmega, azimuths_deg, cos_incidence):
 	"""
-	Calculate the maximum vertical illuminance over all swept facing
-	directions, identical to metrics.py's illuminance_vertical_max()
-	function. This matches the MAXVERT_MLX metric in the CCD database.
+	Maximum vertical illuminance over all swept facing directions,
+	identical to metrics.py's illuminance_vertical_max() function.
+	Matches the MAXVERT_MLX metric in the CCD database.
 
 	Parameters
 	----------
 	img : 2D array
 		Fisheye image, masked with the 90-degree horizon mask, calibrated
-		in mag per square arcsec.
+		in mag/arcsec^2.
 	Theta : 2D array
 		Zenith angle [radians] at each pixel, same shape as img.
 	dOmega : 2D array
-		Solid angle [steradians] subtended by each pixel, same shape as img.
+		Solid angle [sr] per pixel, same shape as img.
 	azimuths_deg : 1D array
-		Facing azimuths swept, in degrees, from precompute_vertical_geometry().
+		From precompute_vertical_geometry().
 	cos_incidence : 3D array
-		Precomputed cos(incidence) weighting array, from
-		precompute_vertical_geometry().
+		From precompute_vertical_geometry().
 
 	Returns
 	-------
 	E_v_max : float
-		Maximum vertical illuminance in mlx, over all sweep directions.
+		Maximum vertical illuminance [mlx].
 	best_azimuth_deg : float
-		Facing azimuth (degrees, compass convention, 0 = North) at which
-		the maximum vertical illuminance occurs.
+		Azimuth (compass, 0=North) at which the maximum occurs.
 	"""
-	L = 108.48*n.exp(20.7233-0.92104*img) # [ucd m-2], Duriscoe 2016 conversion
+	L = mag_to_ucd(img) #[ucd m-2]
 
 	base = L*n.sin(Theta)*dOmega
 	dE = base[n.newaxis,:,:] * cos_incidence
@@ -346,56 +412,130 @@ def illuminance_vertical_max(img, Theta, dOmega, azimuths_deg, cos_incidence):
 	return E_v_max, best_azimuth_deg
 
 
-def ALR(img, dOmega, natural_reference=250):
+def ALR_and_mean(img, dOmega, natural_reference=NATURAL_REFERENCE):
 	"""
-	Calculate the All-sky Light Pollution Ratio (ALR), identical to
-	metrics.py's ALR() function. ALR is the total skyglow brightness
-	divided by the natural dark sky reference value. Each pixel's
-	luminance is weighted by its solid angle dOmega, so that pixels
-	representing more sky area contribute proportionally more to the
-	average -- necessary because this fisheye image is not in an
-	equal-area projection.
+	All-sky Light Pollution Ratio (ALR) and mean all-sky brightness,
+	identical to metrics.py's ALR_and_mean() function.
 
 	Parameters
 	----------
 	img : 2D array
-		Fisheye image, calibrated in mag per square arcsec, already
-		multiplied by the terrain mask, so that terrain/obstructed pixels
-		are NaN and excluded from the average.
+		Fisheye image [mag/arcsec^2], terrain-masked.
 	dOmega : 2D array
-		Solid angle [steradians] subtended by each pixel, same shape as
-		img, from build_calibrated_geometry().
+		Solid angle [sr] per pixel.
 	natural_reference : number, optional
-		Natural reference luminance value [ucd/m^2] used as the denominator
-		of the ratio. Defaults to 250 ucd/m^2, the median natural all-sky
-		brightness (sky+stars) from Duriscoe (2016).
+		Natural reference luminance [ucd/m^2]. Defaults to 250.
 
 	Returns
 	-------
 	alr : float
 		All-sky Light Pollution Ratio (dimensionless).
+	mean_mag : float
+		Solid-angle-weighted mean sky brightness [mag/arcsec^2].
 	"""
-	L = 108.48*n.exp(20.7233-0.92104*img) #[ucd m-2]
+	L = mag_to_ucd(img) #[ucd m-2]
 
-	#solid-angle-weighted average all-sky brightness, artificial light only
-	b_average = n.nansum(L*dOmega)/n.nansum(dOmega) - natural_reference #[ucd m-2]
+	dOmega_masked = n.where(n.isnan(img), n.nan, dOmega)
+	b_average = n.nansum(L*dOmega_masked)/n.nansum(dOmega_masked) #[ucd m-2]
 
-	#light pollution ratio
-	alr = round(float(b_average/natural_reference), 2)
+	alr = round((b_average - natural_reference)/natural_reference, 2)
+	mean_mag = round((20.7233 - n.log(b_average/108.48)) / 0.92104, 2)
 
-	return alr
+	return alr, mean_mag
+
+
+def sky_brightness_percentiles(img, dOmega, percentiles=(1, 50, 99)):
+	"""
+	Solid-angle-weighted sky brightness percentiles, identical to
+	metrics.py's sky_brightness_percentiles() (sq_deg_areas omitted here,
+	since only the fixed percentiles P1/P50/P99 are needed for this
+	comparison).
+
+	Parameters
+	----------
+	img : 2D array
+		Fisheye image [mag/arcsec^2], terrain-masked.
+	dOmega : 2D array
+		Solid angle [sr] per pixel.
+	percentiles : tuple of float, optional
+		Cumulative sky-area percentiles, faintest to brightest. Defaults
+		to (1, 50, 99).
+
+	Returns
+	-------
+	values : dict
+		Percentile -> brightness value [mag/arcsec^2], or None if no
+		valid pixels exist.
+	"""
+	dOmega_masked = n.where(n.isnan(img), n.nan, dOmega)
+
+	valid = ~n.isnan(img) & ~n.isnan(dOmega_masked)
+	if not n.any(valid):
+		return {p: None for p in percentiles}
+
+	b = img[valid]
+	w = dOmega_masked[valid]
+
+	order = n.argsort(-b) #faintest first (descending mag/arcsec^2)
+	b_sorted = b[order]
+	w_sorted = w[order]
+	cum_frac = n.cumsum(w_sorted) / n.sum(w_sorted) * 100
+
+	values = {}
+	for p in percentiles:
+		values[p] = round(float(n.interp(p, cum_frac, b_sorted)), 2)
+
+	return values
+
+
+def synthetic_sqm(img, Theta, dOmega, sqm_v_offset=SQM_V_OFFSET):
+	"""
+	Synthetic Sky Quality Meter (SQM) reading, identical to metrics.py's
+	synthetic_sqm() function.
+
+	Parameters
+	----------
+	img : 2D array
+		Fisheye image [mag/arcsec^2], masked with the 90-degree horizon
+		mask.
+	Theta : 2D array
+		Zenith angle [radians] per pixel (angle from boresight, SQM
+		pointed at zenith).
+	dOmega : 2D array
+		Solid angle [sr] per pixel.
+	sqm_v_offset : number, optional
+		SQM-V conversion factor [mag/arcsec^2]. Defaults to 0.07.
+
+	Returns
+	-------
+	sqm_mag : float or None
+		Synthetic SQM reading [mag/arcsec^2], or None if no valid pixels
+		contribute.
+	"""
+	L = mag_to_ucd(img) #[ucd m-2]
+
+	D = sqm_response(n.rad2deg(Theta))
+	weight = n.where(n.isnan(img), n.nan, D*dOmega)
+
+	denom = n.nansum(weight)
+	if denom == 0 or n.isnan(denom):
+		return None
+
+	L_avg = n.nansum(L*weight) / denom #[ucd m-2]
+	V_avg = (20.7233 - n.log(L_avg/108.48)) / 0.92104 #V-band-equivalent
+	sqm_mag = round(V_avg + sqm_v_offset, 2)
+
+	return sqm_mag
 
 
 def get_fisheye_metrics(dataset, fname, camera, C, theta_of_r, dtheta_dr_of_r, R_cal):
 	"""
-	Compute the zenith brightness, horizontal illuminance, maximum
-	vertical illuminance, and ALR for a single fisheye image, using the
-	same geometry and math as metrics.py. Zenith brightness and ALR use
-	the dataset's terrain mask (mask.fit), so that they reflect only the
-	actually-visible sky at this site. Horizontal and vertical illuminance
-	use a simple 90-degree horizon mask instead, so that they reflect the
-	full hemisphere. The calibrated theta(r) relationship (theta_r.xlsx)
-	is used instead of the equidistant assumption.
+	Compute all fisheye metrics for a single image, using the same
+	geometry and math as metrics.py. Zenith, ALR, Mean, and percentiles
+	use the dataset's terrain mask (mask.fit); horizontal/vertical
+	illuminance and the synthetic SQM reading use a simple 90-degree
+	horizon mask instead. The calibrated theta(r) relationship
+	(theta_r.xlsx) is used throughout.
 
 	Parameters
 	----------
@@ -407,27 +547,16 @@ def get_fisheye_metrics(dataset, fname, camera, C, theta_of_r, dtheta_dr_of_r, R
 		Camera name matching an entry in imagecenter.csv (e.g. 'Fish5').
 	C : DataFrame
 		imagecenter.csv contents, indexed by camera name.
-	theta_of_r : callable
-		Interpolated theta(r) function, from load_theta_r_calibration().
-	dtheta_dr_of_r : callable
-		Interpolated dtheta/dr(r) function, from load_theta_r_calibration().
+	theta_of_r, dtheta_dr_of_r : callable
+		From load_theta_r_calibration().
 	R_cal : float
-		Maximum calibrated pixel radius (at theta=90 degrees).
+		Maximum calibrated pixel radius (theta=90 degrees).
 
 	Returns
 	-------
-	zenith_mag : float or None
-		Median zenith brightness in mag per square arcsec, or None if the
-		image could not be read.
-	horiz_illum : float or None
-		Horizontal illuminance in mlx, or None if the image could not be
-		read.
-	vert_illum_max : float or None
-		Maximum vertical illuminance in mlx, or None if the image could
-		not be read.
-	alr : float or None
-		All-sky Light Pollution Ratio (dimensionless), or None if the
-		image could not be read.
+	metrics : dict
+		Maps each key in CCD_COLUMNS to its fisheye-computed value, or
+		None throughout if the image could not be read.
 	"""
 	data_cal = DATA_ROOT+dataset+'/'
 	fpath = data_cal+fname
@@ -437,7 +566,7 @@ def get_fisheye_metrics(dataset, fname, camera, C, theta_of_r, dtheta_dr_of_r, R
 			raw_img = hdul[0].data.astype(float, copy=True)
 	except Exception as e:
 		print('  Could not read %s: %s' %(fpath, e))
-		return None, None, None, None
+		return {key: None for key in CCD_COLUMNS}
 
 	xc = C['Xcenter'][camera]
 	yc = C['Ycenter'][camera]
@@ -448,7 +577,7 @@ def get_fisheye_metrics(dataset, fname, camera, C, theta_of_r, dtheta_dr_of_r, R
 	r = n.sqrt((x-xc)**2 + (y-yc)**2)
 	Phi = -n.arctan2(y-yc, x-xc) + n.pi/2
 
-	#terrain mask, for zenith and ALR
+	#terrain mask, for zenith/ALR/Mean/percentiles
 	try:
 		with fits.open(data_cal+'mask.fit', uint=False, memmap=False) as hdul:
 			terrain_mask = hdul[0].data.astype(float, copy=True)
@@ -458,42 +587,54 @@ def get_fisheye_metrics(dataset, fname, camera, C, theta_of_r, dtheta_dr_of_r, R
 
 	img_terrain = raw_img * terrain_mask
 
-	#simple 90-degree horizon mask, for horizontal/vertical illuminance
+	#simple 90-degree horizon mask, for illuminance/SQM
 	horizon_mask = n.ones_like(raw_img)
 	horizon_mask[r > R] = n.nan
 	img_horizon = raw_img * horizon_mask
 
-	#zenith brightness -- terrain mask
-	zenith_mag = zenith(img_terrain, r)
-
-	#calibrated horizontal/vertical illuminance geometry, identical to
-	#metrics.py
 	Theta, dOmega = build_calibrated_geometry(r, theta_of_r, dtheta_dr_of_r, R_cal)
 	azimuths_deg, cos_incidence = precompute_vertical_geometry(Phi, step_deg=VERTICAL_STEP_DEG)
 
-	#horizontal illuminance -- horizon mask
-	horiz_illum = illuminance_horizontal(img_horizon, Theta, dOmega)
-	if horiz_illum is not None:
-		horiz_illum = round(float(horiz_illum), 2)
+	zenith_mag = zenith(img_terrain, r)
 
-	#max vertical illuminance -- horizon mask
+	horiz_illum = illuminance_horizontal(img_horizon, Theta, dOmega)
+	horiz_illum = round(float(horiz_illum), 2) if horiz_illum is not None else None
+
 	vert_illum_max, _ = illuminance_vertical_max(
 		img_horizon, Theta, dOmega, azimuths_deg, cos_incidence)
 
-	#ALR -- terrain mask, solid-angle weighted
-	alr = ALR(img_terrain, dOmega)
+	alr, mean_mag = ALR_and_mean(img_terrain, dOmega)
 
-	return zenith_mag, horiz_illum, vert_illum_max, alr
+	star_pct = round(float(predict_visibility(alr, warn_outside_range=False))) \
+			   if alr is not None and alr > 0 else None
+
+	sqm_mag = synthetic_sqm(img_horizon, Theta, dOmega)
+
+	pct = sky_brightness_percentiles(img_terrain, dOmega)
+
+	return {
+		'Zenith': zenith_mag,
+		'Horizontal': horiz_illum,
+		'Vertical Max': vert_illum_max,
+		'ALR': alr,
+		'Mean': mean_mag,
+		'P1': pct[1],
+		'P50': pct[50],
+		'P99': pct[99],
+		'Star': star_pct,
+		'SQM_syn': sqm_mag,
+	}
 
 
-def save_with_autofit_columns(df, outpath, fisheye_cols=None, ccd_cols=None):
+def save_with_autofit_columns(df, outpath, fisheye_cols=None, ccd_cols=None, uniform_width_cols=None):
 	"""
 	Write a DataFrame to an .xlsx file with each column's width set to fit
-	its content (based on the longest value in the column, not the
-	header), using openpyxl, with a minimum width equal to the width of
-	the 'Date' column. Columns listed in fisheye_cols have their text
+	its content, using openpyxl, with a minimum width equal to the width
+	of the 'Date' column. Columns listed in fisheye_cols have their text
 	colored dark orange; columns listed in ccd_cols have their text
-	colored dark gray.
+	colored dark gray. Columns listed in uniform_width_cols are all set to
+	the same width (the widest among them), so metric columns line up
+	visually regardless of individual content length.
 
 	Parameters
 	----------
@@ -505,23 +646,40 @@ def save_with_autofit_columns(df, outpath, fisheye_cols=None, ccd_cols=None):
 		Column names to color as fisheye-derived values (dark orange text).
 	ccd_cols : list of str, optional
 		Column names to color as CCD-derived values (dark gray text).
+	uniform_width_cols : list of str, optional
+		Column names to force to a single shared width (the max natural
+		width among them).
 	"""
 	if fisheye_cols is None:
 		fisheye_cols = []
 	if ccd_cols is None:
 		ccd_cols = []
+	if uniform_width_cols is None:
+		uniform_width_cols = []
 
 	fisheye_font = Font(color=FISHEYE_TEXT_COLOR)
 	ccd_font = Font(color=CCD_TEXT_COLOR)
 	center_align = Alignment(horizontal='center', vertical='center')
 
-	#minimum column width, taken from the content length of the 'Date'
-	#column, so every column is at least as wide as Date
 	if 'Date' in df.columns:
 		date_values = df['Date'].tolist()
 		min_width = max([len('Date')] + [len(str(v)) for v in date_values]) + 2
 	else:
 		min_width = 10
+
+	#compute the natural width of each column once, then find the max
+	#among uniform_width_cols so they can all share that single width
+	natural_widths = {}
+	for col in df.columns:
+		values = df[col].tolist()
+		max_len = max([len(str(v)) for v in values]) if values else 0
+		natural_widths[col] = max(max_len+2, min_width)
+
+	if uniform_width_cols:
+		shared_width = max(natural_widths[col] for col in uniform_width_cols if col in natural_widths)
+		shared_width = shared_width / 2
+	else:
+		shared_width = None
 
 	with pd.ExcelWriter(outpath, engine='openpyxl') as writer:
 		df.to_excel(writer, index=False, sheet_name='Sheet1')
@@ -529,10 +687,12 @@ def save_with_autofit_columns(df, outpath, fisheye_cols=None, ccd_cols=None):
 
 		for i, col in enumerate(df.columns, start=1):
 			col_letter = get_column_letter(i)
-
 			values = df[col].tolist()
-			max_len = max([len(str(v)) for v in values]) if values else 0
-			ws.column_dimensions[col_letter].width = max(max_len+2, min_width)
+
+			if col in uniform_width_cols:
+				ws.column_dimensions[col_letter].width = shared_width
+			else:
+				ws.column_dimensions[col_letter].width = natural_widths[col]
 
 			if col in fisheye_cols:
 				font = fisheye_font
@@ -556,8 +716,7 @@ def save_with_autofit_columns(df, outpath, fisheye_cols=None, ccd_cols=None):
 
 def main():
 	"""
-	Computes the fisheye zenith brightness, horizontal illuminance,
-	maximum vertical illuminance, and ALR for every row in
+	Computes all fisheye metrics for every row in
 	concurrent_observations.xlsx, looks up the matching CCD metrics from
 	the CCD database, and writes the combined table. See the script
 	description for detail.
@@ -569,28 +728,33 @@ def main():
 	print('Loading concurrent observations from %s' %CONCURRENT_OBS_PATH)
 	obs = pd.read_excel(CONCURRENT_OBS_PATH)
 
-	#Date may be read in as a full Timestamp (with a 00:00:00 time
-	#component); keep only the date portion for display
+	#Date may be read in as a full Timestamp; keep only the date portion
 	if 'Date' in obs.columns:
 		obs['Date'] = pd.to_datetime(obs['Date']).dt.date
 
 	print('Loading fisheye database from %s' %DATA_SUMMARY_PATH)
 	log = pd.read_excel(DATA_SUMMARY_PATH, sheet_name='Log')
 
-	#build a Dataset -> camera name lookup (e.g. 'Fish5') from the Log
-	#sheet's Camera column, which records the camera number under the
-	#'Fish<N>' convention used in imagecenter.csv
+	#Dataset -> camera name lookup (e.g. 'Fish5'), from the Log sheet's
+	#Camera column ('Fish<N>' convention used in imagecenter.csv)
 	cameras = {row['Dataset']: 'Fish'+str(row['Camera']).strip()
 			   for _, row in log.iterrows()}
 
 	print('Loading CCD database from %s' %NPMAPS_PATH)
 	npmaps = pd.read_excel(NPMAPS_PATH)
 
-	#DSET is sometimes read as text (e.g. "1" instead of 1) depending on how
-	#the source spreadsheet stores it; normalize both sides to string so
-	#the concurrent_observations.xlsx CCD Dset column still matches
-	npmaps['DSET'] = npmaps['DSET'].astype(str).str.strip()
-	obs['CCD Dset'] = obs['CCD Dset'].astype(str).str.strip()
+	#DSET may be read as text or as a float (e.g. 2.0 if the column had
+	#any blank/NaN values, which forces pandas to upcast the whole column
+	#to float64); normalize both sides to a clean integer-like string so
+	#"2", "2.0", and 2 all match consistently
+	def clean_dset(x):
+		try:
+			return str(int(float(x)))
+		except (ValueError, TypeError):
+			return str(x).strip()
+
+	npmaps['DSET'] = npmaps['DSET'].apply(clean_dset)
+	obs['CCD Dset'] = obs['CCD Dset'].apply(clean_dset)
 
 	print('Loading fisheye camera geometry from %simagecenter.csv' %CALIBRATION)
 	C = pd.read_csv(CALIBRATION+'imagecenter.csv', index_col=0)
@@ -601,14 +765,14 @@ def main():
 	#--------------------------------------------------------------------------#
 	#		  Compute fisheye metrics and look up matching CCD metrics	   #
 	#--------------------------------------------------------------------------#
-	fisheye_zeniths = []
-	ccd_zeniths = []
-	fisheye_horiz_illums = []
-	ccd_horiz_illums = []
-	fisheye_vert_illums = []
-	ccd_vert_illums = []
-	fisheye_alrs = []
-	ccd_alrs = []
+	fisheye_results = {key: [] for key in CCD_COLUMNS}
+	ccd_results = {key: [] for key in CCD_COLUMNS}
+
+	#only track the CCD-only real SQM column if it actually exists in
+	#this CCD database
+	has_ccd_sqm = CCD_ONLY_COLUMN in npmaps.columns
+	if has_ccd_sqm:
+		ccd_sqm_values = []
 
 	for _, row in obs.iterrows():
 
@@ -619,55 +783,50 @@ def main():
 
 		print('Processing %s / %s ...' %(dataset, fname))
 
-		#fisheye zenith brightness, horizontal illuminance, max vertical
-		#illuminance, and ALR
+		#fisheye metrics
 		camera = cameras.get(dataset)
 		if camera is None:
 			print('  No camera specified for %s, skipping.' %dataset)
-			fisheye_zeniths.append(None)
-			fisheye_horiz_illums.append(None)
-			fisheye_vert_illums.append(None)
-			fisheye_alrs.append(None)
+			metrics = {key: None for key in CCD_COLUMNS}
 		else:
-			zenith_mag, horiz_illum, vert_illum_max, alr = get_fisheye_metrics(
+			metrics = get_fisheye_metrics(
 				dataset, fname, camera, C, theta_of_r, dtheta_dr_of_r, R_cal)
-			fisheye_zeniths.append(zenith_mag)
-			fisheye_horiz_illums.append(horiz_illum)
-			fisheye_vert_illums.append(vert_illum_max)
-			fisheye_alrs.append(alr)
+		for key in CCD_COLUMNS:
+			fisheye_results[key].append(metrics[key])
 
-		#CCD zenith brightness, horizontal illuminance, max vertical
-		#illuminance, and ALR -- match on both DNIGHT and DSET, since a
-		#single DNIGHT can contain multiple dsets/sites
+		#CCD metrics -- match on both DNIGHT and DSET, since a single
+		#DNIGHT can contain multiple dsets/sites
 		ccd_match = npmaps[(npmaps['DNIGHT'] == ccd_dnight) &
 							(npmaps['DSET'] == ccd_dset)]
 		if ccd_match.empty:
 			print('  No CCD match found for %s dset %s' %(ccd_dnight, ccd_dset))
-			ccd_zeniths.append(None)
-			ccd_horiz_illums.append(None)
-			ccd_vert_illums.append(None)
-			ccd_alrs.append(None)
+			for key in CCD_COLUMNS:
+				ccd_results[key].append(None)
+			if has_ccd_sqm:
+				ccd_sqm_values.append(None)
 		else:
 			rec = ccd_match.iloc[0]
-			ccd_zeniths.append(rec.get('ZENITH_LUM_MSA', None))
-			ccd_horiz_illums.append(rec.get('HORIZ_MLX', None))
-			ccd_vert_illums.append(rec.get('MAXVERT_MLX', None))
-			ccd_alrs.append(rec.get('ALR_POS', None))
+			for key, ccd_col in CCD_COLUMNS.items():
+				ccd_results[key].append(rec.get(ccd_col, None))
+			if has_ccd_sqm:
+				ccd_sqm_values.append(rec.get(CCD_ONLY_COLUMN, None))
 
-	obs['F Zenith'] = fisheye_zeniths
-	obs['C Zenith'] = ccd_zeniths
-	obs['F Horizontal'] = fisheye_horiz_illums
-	obs['C Horizontal'] = ccd_horiz_illums
-	obs['F Vertical Max'] = fisheye_vert_illums
-	obs['C Vertical Max'] = ccd_vert_illums
-	obs['F ALR'] = fisheye_alrs
-	obs['C ALR'] = ccd_alrs
+	for key in CCD_COLUMNS:
+		obs['F '+key] = fisheye_results[key]
+		obs['C '+key] = ccd_results[key]
+
+	#CCD-only real SQM reading, appended as the last column if present
+	if has_ccd_sqm:
+		obs['C '+CCD_ONLY_COLUMN] = ccd_sqm_values
 
 	#ensure fisheye values are rounded to 2 decimal places in the output,
 	#even if float precision drifted during DataFrame assignment
-	obs['F Horizontal'] = obs['F Horizontal'].round(2)
-	obs['F Vertical Max'] = obs['F Vertical Max'].round(2)
-	obs['F ALR'] = obs['F ALR'].round(2)
+	for key in CCD_COLUMNS:
+		if key == 'Star':
+			obs['F Star'] = obs['F Star'].round(0)
+			obs['C Star'] = obs['C Star'].round(0)
+		else:
+			obs['F '+key] = obs['F '+key].round(2)
 
 	#round the time difference to the nearest whole minute
 	if 'Time Difference (min)' in obs.columns:
@@ -678,8 +837,9 @@ def main():
 	#--------------------------------------------------------------------------#
 	save_with_autofit_columns(
 		obs, OUTPUT_PATH,
-		fisheye_cols=['F Zenith', 'F Horizontal', 'F Vertical Max', 'F ALR'],
-		ccd_cols=['C Zenith', 'C Horizontal', 'C Vertical Max', 'C ALR'])
+		fisheye_cols=['F '+key for key in CCD_COLUMNS],
+		ccd_cols=['C '+key for key in CCD_COLUMNS] + (['C '+CCD_ONLY_COLUMN] if has_ccd_sqm else []),
+		uniform_width_cols=METRIC_COLS)
 	print('\nSaved metric comparison table to', OUTPUT_PATH)
 	print(obs)
 

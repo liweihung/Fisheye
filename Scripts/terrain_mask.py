@@ -19,6 +19,17 @@
 #parameters (t1, m1, t2, m2) and the mask is rebuilt, repeating until the
 #user accepts the result.
 #
+#This script can be run in two ways:
+#   (1) As part of process.py, called after projection.main(). In this
+#       mode, process_input is imported the normal way (as done by the
+#       other scripts in the pipeline), and only mask_color.png is
+#       displayed; all other output files are still saved.
+#   (2) Standalone (__main__), for building/regenerating a mask outside
+#       of a full pipeline run. In this mode, process_input_mask.py is
+#       populated from the target dataset's process_input.py, and all
+#       diagnostic plots (mask_color.png and mask_fisheye.png) are
+#       displayed.
+#
 #Input:
 #   (1) MF_* -- median-filtered reference fisheye image
 #	(2) ../Calibration/imagecenter.csv -- fisheye center coordinates and
@@ -283,9 +294,11 @@ def plot(image, jump_ind, color=False, show=False, save_path=None):
 
 	if show:
 		plt.show(block=False)
+	else:
+		plt.close(fig)
 
 
-def build_and_save_mask(Xc, Yc, R, fisheye_image, ref_img, t1=0.6, m1=80, t2=0.5, m2=10):
+def build_and_save_mask(Xc, Yc, R, fisheye_image, ref_img, t1=0.6, m1=80, t2=0.5, m2=10, show_all=False):
 	"""
 	Build the terrain mask from the reference fisheye image using the
 	given boundary-detection parameters, display the detection-process
@@ -304,6 +317,11 @@ def build_and_save_mask(Xc, Yc, R, fisheye_image, ref_img, t1=0.6, m1=80, t2=0.5
 	t1, m1, t2, m2 : optional
 		Boundary-detection parameters, passed through to
 		terrain_boundary_mask(). See that function for details.
+	show_all : bool, optional
+		If True, display both mask_color.png and mask_fisheye.png
+		interactively. If False, only mask_color.png is displayed;
+		mask_fisheye.png is still saved to disk either way. Defaults
+		to False.
 	"""
 	print('Building mask with t1=%s, m1=%s, t2=%s, m2=%s' %(t1, m1, t2, m2))
 
@@ -323,7 +341,7 @@ def build_and_save_mask(Xc, Yc, R, fisheye_image, ref_img, t1=0.6, m1=80, t2=0.5
 	#--------------------------------------------------------------------------#
 
 	plot(rectangular_image, jump_indices, color=False, show=False)
-	plot(rectangular_image, jump_indices, color=True, show=True)
+	plot(rectangular_image, jump_indices, color=True, show=True) #mask_color.png always shown
 
 	#--------------------------------------------------------------------------#
 	#								   Save the mask						   #
@@ -341,10 +359,13 @@ def build_and_save_mask(Xc, Yc, R, fisheye_image, ref_img, t1=0.6, m1=80, t2=0.5
 	hdu.data = masked_fisheye
 	hdu.writeto(p.data_cal+'mask_fisheye.fit', overwrite=1) #for making a gif
 
-	plt.figure()
+	fig = plt.figure()
 	plt.imshow(masked_fisheye, cmap='gray')
 	plt.savefig(p.data_cal+'mask_fisheye.png', dpi=300)
-	plt.show(block=False)
+	if show_all:
+		plt.show(block=False)
+	else:
+		plt.close(fig)
 
 
 def prompt_for_new_parameters(t1, m1, t2, m2):
@@ -396,7 +417,7 @@ def prompt_for_new_parameters(t1, m1, t2, m2):
 	return t1, m1, t2, m2
 
 
-def main():
+def main(show_all=False):
 	"""
 	Detects the sky-terrain boundary for this dataset's reference image
 	and builds/saves the terrain mask. See the script description for
@@ -407,6 +428,15 @@ def main():
 	a mask, the user is shown the result and asked whether it looks good;
 	if not, they can supply new t1/m1/t2/m2 values and the mask is
 	rebuilt, repeating until the user is satisfied.
+
+	Parameters
+	----------
+	show_all : bool, optional
+		If True, display all diagnostic plots (mask_color.png and
+		mask_fisheye.png). If False, only mask_color.png is displayed.
+		All output files are saved to disk regardless. Defaults to
+		False (suitable for being called from process.py). The
+		standalone __main__ entry point below overrides this to True.
 	"""
 
 	#--------------------------------------------------------------------------#
@@ -445,7 +475,7 @@ def main():
 	t1, m1, t2, m2 = 0.6, 80, 0.5, 10 #boundary-detection defaults
 
 	while True:
-		build_and_save_mask(Xc, Yc, R, fisheye_image, ref_img, t1=t1, m1=m1, t2=t2, m2=m2)
+		build_and_save_mask(Xc, Yc, R, fisheye_image, ref_img, t1=t1, m1=m1, t2=t2, m2=m2, show_all=show_all)
 
 		response = input('\nIs this mask satisfactory? [Y/n]: ').strip().lower()
 		if response in ('', 'y', 'yes'):
@@ -462,4 +492,8 @@ if __name__ == '__main__':
 	shutil.copy(f[0], 'process_input_mask.py')
 	import process_input_mask as p
 
-	main()
+	main(show_all=True)
+
+	#clean up the temporary copy once all datasets are processed
+	if os.path.exists('process_input_mask.py'):
+		os.remove('process_input_mask.py')

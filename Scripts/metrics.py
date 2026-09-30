@@ -6,22 +6,34 @@
 #Extracts night sky brightness metrics from calibrated fisheye images.
 #
 #Zenith brightness, ALR, Mean, and percentiles use the terrain mask
-#(mask.fit), reflecting only the actually-visible sky. Horizontal and
-#vertical illuminance use a simple 90-degree horizon mask instead,
-#reflecting the full hemisphere.
+#(mask.fit), reflecting only the visible sky. Horizontal and vertical 
+#illuminance use a simple 90-degree horizon mask instead, reflecting 
+#the full hemisphere.
+#
+#Two run modes:
+#   (1) Pipeline (process.py calls main()): process_input is imported
+#       normally, and the vertical illuminance plot is saved but not
+#       shown.
+#   (2) Standalone (__main__): each dataset's process_input.py is copied
+#       to process_input_metric.py and imported as p; the plot is shown
+#       (non-blocking); the temp file is deleted when done.
 #
 #Input:
 #   (1) theta_r.xlsx -- empirically measured theta(r) calibration table
 #	(2) mask.fit -- terrain mask for this dataset
 #
 #Output:
-#   (1) p.data_cal+'metrics.xlsx' -- Date, Time (LMT), File name, Zenith,
-#       percentiles, Mean, ALR, Star (% of naked-eye-visible stars), SQM
-#       (synthetic Sky Quality Meter reading), Horizontal/Vertical
-#       Illuminance, azimuth, plus each brightness metric converted to
-#       ucd/m^2, for every processed image
+#   (1) p.data_cal+'metrics.xlsx' -- Date, Time (LMT), File name,
+#       Reference (whether the file is this dataset's reference image),
+#       Zenith, percentiles, Mean, ALR, Star (% of naked-eye-visible
+#       stars), SQM (synthetic Sky Quality Meter reading),
+#       Horizontal/Vertical Illuminance, azimuth, plus each brightness
+#       metric converted to ucd/m^2, for every processed image
 #	(2) p.data_cal+'vertical_illuminance.xlsx' -- full azimuth sweep of
 #	    vertical illuminance for the dataset's reference image only
+#	(3) p.data_cal+'vertical_illuminance.png' -- plot of vertical
+#	    illuminance vs. azimuth angle for the dataset's reference image
+#	    only, with the maximum marked
 #
 #History:
 #	Li-Wei Hung -- Created 
@@ -31,7 +43,10 @@ import importlib
 import numpy as n
 import os
 import pandas as pd
+import re
 import shutil
+
+import matplotlib.pyplot as plt
 
 from astropy.io import fits
 from datetime import datetime
@@ -41,7 +56,6 @@ from openpyxl.utils import get_column_letter
 from scipy.interpolate import interp1d
 
 # Local Source
-#import process_input as p     
 import projection
 from star_visibility_model_AI import predict_visibility
 from sqm_model_AI import sqm_response
@@ -88,9 +102,8 @@ def get_obs_date_time_lmt(hdr, file):
 
 def zenith(img, a=4.75):
     """
-	Median zenith brightness over a circular aperture at image center.
-
-	Corresponds to "Zenith" in the online NPMaps database.
+	Median zenith brightness over a ~1-degree circular aperture at image
+	center. Corresponds to "Zenith" in the online NPMaps database.
 
 	Parameters
 	----------
@@ -144,7 +157,6 @@ def load_theta_r_calibration(path):
 	theta_deg_full = n.concatenate(([0], theta_deg))
 	r_full = n.concatenate(([0], r_cumulative))
 
-	#theta(r)
 	theta_of_r = interp1d(r_full, n.deg2rad(theta_deg_full),
 						  bounds_error=False, fill_value=(0, n.nan),
 						  kind='linear')
@@ -429,15 +441,13 @@ def sky_brightness_percentiles(img, dOmega, percentiles=(1, 50, 95, 99), sq_deg_
     b = img[valid]
     w = dOmega_masked[valid]
 
-    #sort by brightness descending mag/arcsec^2 (i.e. ascending physical
-    #brightness -- faintest pixel first), and build the cumulative
-    #solid-angle fraction over this dataset's actual visible sky area,
-    #accumulating from faintest to brightest
+    #sort faintest-to-brightest and build the cumulative solid-angle
+    #fraction over this image's actual visible sky area
     order = n.argsort(-b)
     b_sorted = b[order]
     w_sorted = w[order]
     total_sr = n.sum(w_sorted) #total visible solid angle [sr]
-    cum_frac = n.cumsum(w_sorted) / total_sr * 100 #percent of visible sky area darker than b_sorted[i]
+    cum_frac = n.cumsum(w_sorted) / total_sr * 100 #% of visible sky darker than b_sorted[i]
 
     values = {}
 
@@ -556,6 +566,56 @@ def save_with_autofit_columns(df, outpath, min_width=10, decimal_cols=None):
                 for row in range(2, nrows+2):
                     ws[f'{col_letter}{row}'].number_format = '0.00'
 
+
+def plot_vertical_illuminance(azimuths_deg, E_v_sweep, best_azimuth_deg, E_v_max, outpath, show=False):
+    """
+	Plot vertical illuminance as a function of azimuth angle, for the
+	dataset's reference image, and save it as a PNG.
+
+	Parameters
+	----------
+	azimuths_deg : 1D array
+		Swept azimuths [deg], compass convention (0=North, clockwise
+		E/S/W), from precompute_vertical_geometry().
+	E_v_sweep : 1D array
+		Vertical illuminance [mlx] at each swept azimuth, from
+		illuminance_vertical_max().
+	best_azimuth_deg : float
+		Azimuth [deg] at which the maximum vertical illuminance occurs,
+		marked on the plot.
+	E_v_max : float
+		Maximum vertical illuminance [mlx], marked on the plot.
+	outpath : str
+		Destination PNG path.
+	show : bool, optional
+		If True, display the plot interactively. Defaults to False.
+	"""
+    fig, ax = plt.subplots(figsize=(8, 5))
+
+    ax.plot(azimuths_deg, E_v_sweep, '-o', markersize=3, color='steelblue')
+
+    #plot the red marker
+    best_idx = n.argmin(n.abs(azimuths_deg - best_azimuth_deg))
+    ax.plot(azimuths_deg[best_idx], E_v_sweep[best_idx], 'o', markersize=8, color='crimson',
+            label=f'Max: {E_v_max:.2f} mlx at {best_azimuth_deg}°')
+
+    ax.set_xlabel('Azimuth (degrees, 0=N)')
+    ax.set_ylabel('Vertical Illuminance (mlx)')
+    ax.set_title('Vertical Illuminance vs. Azimuth')
+    ax.set_xlim(0, 355)
+    ax.set_xticks(n.arange(0, 360, 45))
+    ax.legend(loc='best')
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+
+    fig.savefig(outpath, dpi=300)
+
+    if show:
+        plt.show(block=False)
+    else:
+        plt.close(fig)
+
+
 #------------------------------------------------------------------------------#
 
 
@@ -570,23 +630,56 @@ def parse_lat_lon(coord):
     return float(coord)
 
 
+def image_sort_key(filename):
+    """
+	Natural sort key for image filenames, so that files sort by their
+	embedded image number (1, 2, ..., 10, 11, ...) rather than
+	lexicographically (1, 10, 11, ..., 2).
+
+	Parameters
+	----------
+	filename : str
+		Image file name (e.g. 'Light_V_0010.fit' or 'img_sky_10.fit').
+
+	Returns
+	-------
+	key : tuple
+		(number, filename). The trailing integer found immediately
+		before the file extension, or infinity if none is found (so
+		unmatched names sort last); filename is included as a tiebreaker
+		for stable, deterministic ordering.
+	"""
+    match = re.search(r'(\d+)(?=\.\w+$)', filename)
+    num = int(match.group(1)) if match else float('inf')
+    return (num, filename)
+
+
 #------------------------------------------------------------------------------#
 
 
-#List of files to process
-datasets = glob('../Data_processed/WHSA_20220227/process_input.py')
-#		   glob('../Data_processed/ROMO_20241003B_testcopy/process_input.py')
-#    	   glob'../Data_processed/GUIS_20231210B/process_input.py') #+ \
-#		   glob('../Data_processed/EGLI*/process_input.py') + \
-#          glob('../Data_processed/BOSE*/process_input.py')
+def process_dataset(p, show_plot=False):
+    """
+	Compute and save night sky brightness metrics for one dataset.
 
-for pi in datasets:
-    shutil.copy(pi, 'process_input_metric.py')
-    import process_input_metric as p
-    importlib.reload(p)
+	For each image, a subset of the computed metrics (Zenith, ALR, Star,
+	Horizontal, Vertical, Azimuth, SQM_syn) is printed to the terminal:
+	metric names on one comma-separated line, followed by their values
+	on the next comma-separated line.
+
+	Parameters
+	----------
+	p : module
+		The dataset's process_input module (or process_input_metric,
+		when run standalone), already imported/reloaded by the caller.
+	show_plot : bool, optional
+		If True, display the vertical illuminance plot interactively
+		(non-blocking). The PNG is saved to disk either way. Defaults
+		to False.
+	"""
+    global r, Theta, dOmega
 
     #Image center coordinates and FoV radius
-    C = pd.read_csv('../Calibration/imagecenter.csv',index_col=0)
+    C = pd.read_csv('../Calibration/imagecenter.csv', index_col=0)
     xc = C['Xcenter'][p.camera]
     yc = C['Ycenter'][p.camera]
     R  = C['Radius'][p.camera]
@@ -614,11 +707,14 @@ for pi in datasets:
 
     #Images to process
     images = glob(p.data_cal+'Light*.fit') + glob(p.data_cal+'img*sky*.fit')
+    images.sort(key=lambda f: image_sort_key(os.path.basename(f)))
     reference_files = {os.path.normpath(f) for f in glob(p.data_cal+p.reference)}
 
     data_rows = []
 
     for file in images:
+
+        is_reference = os.path.normpath(file) in reference_files
 
         print(f"Processing {file} ...")
         with fits.open(file, uint=False, memmap=False) as hdul:
@@ -630,30 +726,30 @@ for pi in datasets:
         date, hour = get_obs_date_time_lmt(hdr, file)
 
         zenith_mag = zenith(img_terrain)
-        print("Zenith:", zenith_mag)
 
         horizontal_illum = illuminance_horizontal(img_horizon)
-        print("Horizontal Illuminance:", horizontal_illum)
 
         E_v_sweep, E_v_max, best_azimuth_deg = illuminance_vertical_max(
             img_horizon, azimuths_deg, cos_incidence)
-        print(f"Max vertical illuminance is at azimuth {best_azimuth_deg}°: {E_v_max:.2f} mlx")
 
         alr, mean_mag = ALR_and_mean(img_terrain, dOmega)
-        print("ALR:", alr, " Mean:", mean_mag)
 
         #Percentage of naked-eye-visible stars, predicted from ALR
         star_pct = round(float(predict_visibility(alr, warn_outside_range=False))) if alr is not None and alr > 0 else None
-        print("Star:", star_pct)
 
         #Synthetic SQM reading, from the 90-degree horizon-masked image
         sqm_mag = synthetic_sqm(img_horizon, Theta, dOmega)
-        print("SQM:", sqm_mag)
 
         pct = sky_brightness_percentiles(img_terrain, dOmega)
-        print("Percentiles (1/50/95/99/brightest 1 sqdeg/brightest 0.25 sqdeg):",
-              pct[1], pct[50], pct[95], pct[99],
-              pct['brightest_1_sqdeg'], pct['brightest_0.25_sqdeg'])
+
+        #Print a subset of metrics: names on one line, values on the
+        #next, comma-separated
+        metric_names = ['Zenith', 'ALR', 'Star', 'Horizontal',
+                         'Vertical', 'Azimuth', 'SQM_syn']
+        metric_values = [zenith_mag, alr, star_pct, horizontal_illum,
+                          E_v_max, best_azimuth_deg, sqm_mag]
+        print(', '.join(metric_names))
+        print(', '.join(str(v) for v in metric_values))
 
         def to_ucd(mag):
             """Convert a mag/arcsec^2 value to ucd/m^2, or None."""
@@ -679,15 +775,16 @@ for pi in datasets:
             'Date': date,
             'Time': hour,
             'File': os.path.basename(file),
+            'Reference': 'Yes' if is_reference else 'No',
             'Zenith': zenith_mag,
             'P1': pct[1], #Darkest
             'P50': pct[50], #Median
             'P95': pct[95],
-            'P99': pct[99], #Brightest 
+            'P99': pct[99], #Brightest
             'Bright1': pct['brightest_1_sqdeg'],
             'Bright025': pct['brightest_0.25_sqdeg'],
             'Mean': mean_mag, #Mean all-sky
-            'ALR': alr,									
+            'ALR': alr,
             'Star': star_pct, #% of naked-eye-visible stars, from ALR
             'Horizontal': horizontal_illum, #Horizontal
             'Vertical': E_v_max, #Max Vertical
@@ -701,8 +798,9 @@ for pi in datasets:
 
         data_rows.append(row)
 
-        #Save the reference image's full azimuth sweep
-        if os.path.normpath(file) in reference_files:
+        #Save the reference image's full azimuth sweep, as both a table
+        #and a plot
+        if is_reference:
             df_vert = pd.DataFrame({
                 'Azimuth': azimuths_deg,
                 'Vertical Illuminance (mlx)': n.round(E_v_sweep, 2),
@@ -713,9 +811,48 @@ for pi in datasets:
             print('Saved vertical illuminance sweep to',
                   p.data_cal+'vertical_illuminance.xlsx')
 
+            plot_vertical_illuminance(
+                azimuths_deg, E_v_sweep, best_azimuth_deg, E_v_max,
+                p.data_cal+'vertical_illuminance.png', show=show_plot)
+            print('Saved vertical illuminance plot to',
+                  p.data_cal+'vertical_illuminance.png')
+
     df_metrics = pd.DataFrame(data_rows)
     save_with_autofit_columns(
         df_metrics, p.data_cal+'metrics.xlsx',
         decimal_cols=['Zenith', 'Horizontal', 'Vertical', 'ALR', 'Mean', 'SQM_syn',
                       'P1', 'P50', 'P95', 'P99', 'Bright1', 'Bright025'])
     print('Saved metrics summary to', p.data_cal+'metrics.xlsx')
+
+
+def main(show_plot=False):
+    """
+	Compute metrics for this dataset via a normal process_input import.
+	Called from process.py after the rest of the pipeline finishes.
+
+	Parameters
+	----------
+	show_plot : bool, optional
+		Show the vertical illuminance plot interactively (non-blocking).
+		The PNG is saved either way. Defaults to False.
+	"""
+    import process_input as p
+    process_dataset(p, show_plot=show_plot)
+
+
+if __name__ == '__main__':
+
+    #List of dataset process_input.py files to process
+    datasets = glob('../Data_processed/WHSA_20220227/process_input.py') + \
+			   glob('../Data_processed/NIOB_20240830C/process_input.py')
+
+    for pi in datasets:
+        shutil.copy(pi, 'process_input_metric.py')
+        import process_input_metric as p
+        importlib.reload(p)
+
+        process_dataset(p, show_plot=True)
+
+    #clean up the temporary copy once all datasets are processed
+    if os.path.exists('process_input_metric.py'):
+        os.remove('process_input_metric.py')

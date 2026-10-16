@@ -26,11 +26,13 @@ import shutil
 import astrometry
 import process_input
 import median_filter
+import metrics
 import photometric_calibration
 import photometry
 import positional_calibration
 import projection
 import reduction
+import terrain_mask
 
 #------------------------------------------------------------------------------#
 #Output - create calibrated images folder
@@ -38,16 +40,18 @@ if not os.path.isdir(process_input.data_cal):
     os.makedirs(process_input.data_cal)
 
 #Save a copy of the process_input file
-shutil.copy("process_input.py", process_input.data_cal)
+#shutil.copy("process_input.py", process_input.data_cal)
 
 #------------------------------------------------------------------------------#
-reduction.main()						#data reduction
-astrometry.main()						#astrometric measurement
-photometry.main()						#Gaussian PSF photometry
-photometric_calibration.main()			#absolute photometric calibration
-positional_calibration.main()			#positional calibration
-median_filter.main()					#median filter
-projection.main()						#plotting
+#reduction.main()						#data reduction
+#astrometry.main()						#astrometric measurement
+#photometry.main()						#Gaussian PSF photometry
+#photometric_calibration.main()			#absolute photometric calibration
+#positional_calibration.main()			#positional calibration
+#median_filter.main()					#median filter
+#projection.main()						#plotting
+terrain_mask.main()				        #terrain mask generation
+metrics.main()							#sky brightness metrics calculation
 
 	
 	

@@ -26,9 +26,10 @@
 #   (1) p.data_cal+'metrics.xlsx' -- Date, Time (LMT), File name,
 #       Reference (whether the file is this dataset's reference image),
 #       Zenith, percentiles, Mean, ALR, Star (% of naked-eye-visible
-#       stars), SQM (synthetic Sky Quality Meter reading),
-#       Horizontal/Vertical Illuminance, azimuth, plus each brightness
-#       metric converted to ucd/m^2, for every processed image
+#       stars), SQM (synthetic Sky Quality Meter reading), SQML
+#       (synthetic SQM-L, narrow-FOV reading), Horizontal/Vertical
+#       Illuminance, azimuth, plus each brightness metric converted to
+#       ucd/m^2, for every processed image
 #	(2) p.data_cal+'vertical_illuminance.xlsx' -- full azimuth sweep of
 #	    vertical illuminance for the dataset's reference image only
 #	(3) p.data_cal+'vertical_illuminance.png' -- plot of vertical
@@ -58,7 +59,7 @@ from scipy.interpolate import interp1d
 # Local Source
 import projection
 from star_visibility_model_AI import predict_visibility
-from sqm_model_AI import sqm_response
+from sqm_model_AI import sqm_response, sqml_response
 
 #------------------------------------------------------------------------------#
 
@@ -472,13 +473,17 @@ def sky_brightness_percentiles(img, dOmega, percentiles=(1, 50, 95, 99), sq_deg_
     return values
 
 
-def synthetic_sqm(img, Theta, dOmega, sqm_v_offset=0.07):
+def synthetic_sqm(img, Theta, dOmega, response_func=sqm_response, sqm_v_offset=0.07):
     """
 	Synthetic Sky Quality Meter (SQM) reading, following Cinzano (2005)
 	Eq. (1): image luminance integrated over the sky, weighted by the
-	SQM's angular sensitivity D(theta) (sqm_response()) and solid angle
-	dOmega (which already includes sin(theta), so no separate term is
-	needed).
+	instrument's angular sensitivity D(theta) and solid angle dOmega (which
+	already includes sin(theta), so no separate term is needed).
+
+	The same integration serves both SQM variants; only the angular
+	sensitivity differs, passed in via response_func (sqm_response for the
+	standard wide-FOV SQM, sqml_response for the narrow-FOV SQM-L). Both
+	variants share the same spectral response, so sqm_v_offset is unchanged.
 
 	The weighted average is converted to a V-band-equivalent brightness
 	via the inverse of Duriscoe (2016) equation 1, then shifted by
@@ -486,8 +491,9 @@ def synthetic_sqm(img, Theta, dOmega, sqm_v_offset=0.07):
 	from Cinzano 2005 Sec. 5, averaged over natural (+0.06) and polluted
 	(+0.08) sky) to produce a value comparable to a real SQM reading.
 
-	D(theta) tapers to zero beyond ~65 degrees from boresight, so pixels
-	near the horizon contribute little regardless of the mask on img.
+	D(theta) tapers to zero at large angles, so pixels near the horizon
+	contribute little regardless of the mask on img -- strongly so for the
+	narrow-FOV SQM-L.
 
 	Parameters
 	----------
@@ -496,9 +502,12 @@ def synthetic_sqm(img, Theta, dOmega, sqm_v_offset=0.07):
 		mask (not the terrain mask).
 	Theta : 2D array
 		Zenith angle [radians] per pixel (angle from boresight, assuming
-		the SQM points at zenith), from build_calibrated_geometry().
+		the instrument points at zenith), from build_calibrated_geometry().
 	dOmega : 2D array
 		Solid angle [sr] per pixel, from build_calibrated_geometry().
+	response_func : callable, optional
+		Angular sensitivity D(theta) to use: sqm_response (default) for the
+		standard SQM, or sqml_response for the SQM-L.
 	sqm_v_offset : number, optional
 		SQM-V conversion factor [mag/arcsec^2] added to the V-band
 		weighted average. Defaults to 0.07.
@@ -511,8 +520,8 @@ def synthetic_sqm(img, Theta, dOmega, sqm_v_offset=0.07):
 	"""
     L = mag_to_ucd(img) #[ucd m-2]
 
-    #SQM angular sensitivity at each pixel's zenith angle
-    D = sqm_response(n.rad2deg(Theta))
+    #angular sensitivity at each pixel's zenith angle (SQM or SQM-L)
+    D = response_func(n.rad2deg(Theta))
 
     #match D*dOmega's NaN mask to img's, so both sums cover the same pixels
     weight = n.where(n.isnan(img), n.nan, D*dOmega)
@@ -662,9 +671,9 @@ def process_dataset(p, show_plot=False):
 	Compute and save night sky brightness metrics for one dataset.
 
 	For each image, a subset of the computed metrics (Zenith, ALR, Star,
-	Horizontal, Vertical, Azimuth, SQM_syn) is printed to the terminal:
-	metric names on one comma-separated line, followed by their values
-	on the next comma-separated line.
+	Horizontal, Vertical, Azimuth, SQM_syn, SQML_syn) is printed to the
+	terminal: metric names on one comma-separated line, followed by their
+	values on the next comma-separated line.
 
 	Parameters
 	----------
@@ -737,17 +746,19 @@ def process_dataset(p, show_plot=False):
         #Percentage of naked-eye-visible stars, predicted from ALR
         star_pct = round(float(predict_visibility(alr, warn_outside_range=False))) if alr is not None and alr > 0 else None
 
-        #Synthetic SQM reading, from the 90-degree horizon-masked image
+        #Synthetic SQM and SQM-L readings, from the 90-degree horizon-masked
+        #image. Same integration; only the angular response differs.
         sqm_mag = synthetic_sqm(img_horizon, Theta, dOmega)
+        sqml_mag = synthetic_sqm(img_horizon, Theta, dOmega, response_func=sqml_response)
 
         pct = sky_brightness_percentiles(img_terrain, dOmega)
 
         #Print a subset of metrics: names on one line, values on the
         #next, comma-separated
         metric_names = ['Zenith', 'ALR', 'Star', 'Horizontal',
-                         'Vertical', 'Azimuth', 'SQM_syn']
+                         'Vertical', 'Azimuth', 'SQM_syn', 'SQML_syn']
         metric_values = [zenith_mag, alr, star_pct, horizontal_illum,
-                          E_v_max, best_azimuth_deg, sqm_mag]
+                          E_v_max, best_azimuth_deg, sqm_mag, sqml_mag]
         print(', '.join(metric_names))
         print(', '.join(str(v) for v in metric_values))
 
@@ -790,6 +801,7 @@ def process_dataset(p, show_plot=False):
             'Vertical': E_v_max, #Max Vertical
             'Azimuth': best_azimuth_deg,
             'SQM_syn': sqm_mag, #Synthetic Sky Quality Meter reading
+            'SQML_syn': sqml_mag, #Synthetic SQM-L (narrow-FOV) reading
         }
 
         #ucd values, all together
@@ -820,7 +832,8 @@ def process_dataset(p, show_plot=False):
     df_metrics = pd.DataFrame(data_rows)
     save_with_autofit_columns(
         df_metrics, p.data_cal+'metrics.xlsx',
-        decimal_cols=['Zenith', 'Horizontal', 'Vertical', 'ALR', 'Mean', 'SQM_syn',
+        decimal_cols=['Zenith', 'Horizontal', 'Vertical', 'ALR', 'Mean',
+                      'SQM_syn', 'SQML_syn',
                       'P1', 'P50', 'P95', 'P99', 'Bright1', 'Bright025'])
     print('Saved metrics summary to', p.data_cal+'metrics.xlsx')
 

@@ -63,7 +63,7 @@ cd Fisheye/Scripts
 conda create --name fisheye python=3.12.12
 conda activate fisheye
 pip install poetry
-poetry install
+python -m poetry install
 ```
 
 ### Contributing

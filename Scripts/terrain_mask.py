@@ -480,10 +480,11 @@ def main(show_all=False):
 		response = input('\nIs this mask satisfactory? [Y/n]: ').strip().lower()
 		if response in ('', 'y', 'yes'):
 			print('Mask accepted.')
+			plt.close('all') #clear all mask plots once accepted
 			break
 
 		t1, m1, t2, m2 = prompt_for_new_parameters(t1, m1, t2, m2)
-
+		plt.close('all') #clear the current plots before rebuilding
 
 if __name__ == '__main__':
 

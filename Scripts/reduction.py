@@ -3,7 +3,7 @@
 #
 #NPS Night Skies Program
 #
-#Last updated: 2026/07/06
+#Last updated: 2026/10/19
 #
 #This script performs basic image reduction and applies mask on the fisheye 
 #image data collected by the NPS Night Skies Program. The script corrects for:
@@ -14,6 +14,11 @@
 #
 #Note: All the calibration files should be taken at the same temperature as the 
 #science images. 
+#
+#Currently only V-band data is processed. B/R frames may be present in the raw
+#folder but are excluded: the filter loop is restricted to 'V', and each frame's
+#header FILTER keyword is verified before processing to guard against filename
+#based selection picking up the wrong band.
 #
 #Input: 
 #   (1) Raw field data -- dark, bias, and science frames
@@ -27,6 +32,7 @@
 #History:
 #	Li-Wei Hung -- Created in 2020
 #	Li-Wei Hung -- Modified the code to support processing V and B images 
+#	Li-Wei Hung -- Restricted processing to V band with header verification
 #
 #------------------------------------------------------------------------------#
 import numpy as n
@@ -49,8 +55,8 @@ def main():
 	xp, fp = n.loadtxt(p.linearity, unpack=True)
 	
 	
-	#Flat - read in the flat filenames
-	flatfile = {'V':p.flatv, 'B':p.flatb}
+	#Flat - read in the flat filenames (V band only)
+	flatfile = {'V':p.flatv}
 
 	
 	#Bias - generate averaged bias 
@@ -83,7 +89,7 @@ def main():
 	for k in flatfile.keys(): 							#loop through filters
 		
 		try: 
-			with fits.open(flatfile[k], uint=0, memmap=False) as hdul:  # <-- CHANGED
+			with fits.open(flatfile[k], uint=0, memmap=False) as hdul:
 				flat = hdul[0].data.astype(float, copy=True)       
 			flat /= n.nanmean(flat)
 		except: continue
@@ -94,6 +100,13 @@ def main():
 			with fits.open(f,uint=False) as hdulist:
 				light = hdulist[0].data.astype(float, copy=True) #science image
 				hdr   = hdulist[0].header.copy()					
+
+			#verify the frame's band from the header before processing
+			hdr_filter = hdr.get('FILTER', '')
+			if k not in str(hdr_filter).upper():
+				print(f'Skipping {f[len(p.data_raw):]}: header FILTER='
+					  f'{hdr_filter!r} does not match band {k}')
+				continue
 
 			light *= mask							#apply fisheye mask
 			light -= bias							#subtract bias

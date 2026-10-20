@@ -216,6 +216,8 @@ def main():
         fig1.savefig(f[:-4]+'_hammer.png')
         ta1.remove()
         ta2.remove()
+
+    plt.close('all')
         
 
 if __name__ == '__main__':

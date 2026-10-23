@@ -3,7 +3,7 @@
 #
 #NPS Night Skies Program
 #
-#Last updated: 2020/10/13
+#Last updated: 2026/10/23
 #
 #This is the main pipeline for processing fisheye images. If measure_reference 
 #is True, photometric and positional calibration constants will be derived from 
@@ -36,7 +36,7 @@ import terrain_mask
 
 #------------------------------------------------------------------------------#
 # Validate requested bands against pipeline capability
-unsupported = [b for b in p.bands if b not in process_input.supported_bands]
+unsupported = [b for b in process_input.bands if b not in process_input.supported_bands]
 if unsupported:
     raise ValueError(
         f"Requested band(s) {unsupported} not yet supported. "

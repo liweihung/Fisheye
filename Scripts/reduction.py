@@ -3,7 +3,7 @@
 #
 #NPS Night Skies Program
 #
-#Last updated: 2026/10/19
+#Last updated: 2026/10/22
 #
 #This script performs basic image reduction and applies mask on the fisheye 
 #image data collected by the NPS Night Skies Program. The script corrects for:
@@ -15,10 +15,11 @@
 #Note: All the calibration files should be taken at the same temperature as the 
 #science images. 
 #
-#Currently only V-band data is processed. B/R frames may be present in the raw
-#folder but are excluded: the filter loop is restricted to 'V', and each frame's
-#header FILTER keyword is verified before processing to guard against filename
-#based selection picking up the wrong band.
+#Bands are processed according to process_input.bands, restricted to those the
+#pipeline can actually calibrate (process_input.supported_bands). B/R frames may
+#be present in the raw folder; they are only processed if requested AND supported.
+#Each frame's header FILTER keyword is also verified before processing, to guard
+#against filename-based selection picking up the wrong band.
 #
 #Input: 
 #   (1) Raw field data -- dark, bias, and science frames
@@ -32,7 +33,8 @@
 #History:
 #	Li-Wei Hung -- Created in 2020
 #	Li-Wei Hung -- Modified the code to support processing V and B images 
-#	Li-Wei Hung -- Restricted processing to V band with header verification
+#	Li-Wei Hung -- Band selection driven by process_input.bands with header
+#	               verification and supported-band gating
 #
 #------------------------------------------------------------------------------#
 import numpy as n
@@ -55,8 +57,8 @@ def main():
 	xp, fp = n.loadtxt(p.linearity, unpack=True)
 	
 	
-	#Flat - read in the flat filenames (V band only)
-	flatfile = {'V':p.flatv}
+	#Flat - map each band to its flat file
+	flat_by_band = {'V':p.flatv, 'B':p.flatb, 'R':p.flatr}
 
 	
 	#Bias - generate averaged bias 
@@ -86,10 +88,15 @@ def main():
 	
 	
 	#Calibration - calibrate the science images
-	for k in flatfile.keys(): 							#loop through filters
-		
+	for k in p.bands: 								#loop through requested bands
+
+		#skip bands the pipeline cannot yet calibrate (gated standalone too)
+		if k not in p.supported_bands:
+			print(f'Skipping band {k}: not yet supported by the pipeline')
+			continue
+
 		try: 
-			with fits.open(flatfile[k], uint=0, memmap=False) as hdul:
+			with fits.open(flat_by_band[k], uint=0, memmap=False) as hdul:
 				flat = hdul[0].data.astype(float, copy=True)       
 			flat /= n.nanmean(flat)
 		except: continue
@@ -124,7 +131,7 @@ def main():
 				hdr['OBSERVER'] = p.observers
 			hdr['PROCESS'] = p.processor
 			hdr['history'] = f'Linearity curve used is {p.fn_linearity}'
-			hdr['history'] = f'Flat used is {flatfile[k][len(p.calibration):]}'
+			hdr['history'] = f'Flat used is {flat_by_band[k][len(p.calibration):]}'
 			hdr['history'] = f'Mask used is {p.fn_mask}'			
 			fits.writeto(p.data_cal+f[len(p.data_raw):],light,
 						 header=hdr,overwrite=1)

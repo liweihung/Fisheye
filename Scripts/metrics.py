@@ -728,6 +728,10 @@ def process_dataset(p, show_plot=False):
         print(f"Processing {file} ...")
         with fits.open(file, uint=False, memmap=False) as hdul:
             hdr = hdul[0].header
+            band = hdr['FILTER']
+            if band not in p.supported_bands:
+                print(f"Warning: Unsupported band '{band}' in file {file}. Skipping.")
+                continue	
             raw_img = hdul[0].data.astype(float, copy=True)
         img_terrain = raw_img * mask
         img_horizon = raw_img * horizon_mask
@@ -756,9 +760,9 @@ def process_dataset(p, show_plot=False):
         #Print a subset of metrics: names on one line, values on the
         #next, comma-separated
         metric_names = ['Zenith', 'ALR', 'Star', 'Horizontal',
-                         'Vertical', 'Azimuth', 'SQM_syn', 'SQML_syn']
+                         'Vertical', 'Azimuth', 'SQM_syn']
         metric_values = [zenith_mag, alr, star_pct, horizontal_illum,
-                          E_v_max, best_azimuth_deg, sqm_mag, sqml_mag]
+                          E_v_max, best_azimuth_deg, sqm_mag]
         print(', '.join(metric_names))
         print(', '.join(str(v) for v in metric_values))
 
@@ -786,6 +790,7 @@ def process_dataset(p, show_plot=False):
             'Date': date,
             'Time': hour,
             'File': os.path.basename(file),
+			'Band': band, 
             'Reference': 'Yes' if is_reference else 'No',
             'Zenith': zenith_mag,
             'P1': pct[1], #Darkest
@@ -856,14 +861,17 @@ def main(show_plot=False):
 if __name__ == '__main__':
 
     #List of dataset process_input.py files to process
-    datasets = glob('../Data_processed/WHSA_20220227/process_input.py') + \
-			   glob('../Data_processed/NIOB_20240830C/process_input.py')
+    datasets = glob('../Data_processed/ROMO_20241003A_testcopy/process_input.py') #+ \
+               #glob('../Data_processed/WHSA_20220227/process_input.py') + \
+			   #glob('../Data_processed/NIOB_20240830C/process_input.py')
 
     for pi in datasets:
         shutil.copy(pi, 'process_input_metric.py')
         import process_input_metric as p
         importlib.reload(p)
-
+        if not hasattr(p, 'supported_bands'):
+            print(f"Warning: {pi} does not define 'supported_bands'. Assuming only V-band is supported.")
+            p.supported_bands = ['V']
         process_dataset(p, show_plot=True)
 
     #clean up the temporary copy once all datasets are processed

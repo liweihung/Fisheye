@@ -35,6 +35,14 @@ import reduction
 import terrain_mask
 
 #------------------------------------------------------------------------------#
+# Validate requested bands against pipeline capability
+unsupported = [b for b in p.bands if b not in process_input.supported_bands]
+if unsupported:
+    raise ValueError(
+        f"Requested band(s) {unsupported} not yet supported. "
+        f"Pipeline can calibrate: {', '.join(process_input.supported_bands)}."
+    )
+
 #Output - create calibrated images folder
 if not os.path.isdir(process_input.data_cal): 
     os.makedirs(process_input.data_cal)
@@ -50,8 +58,8 @@ photometric_calibration.main()			#absolute photometric calibration
 positional_calibration.main()			#positional calibration
 median_filter.main()					#median filter
 projection.main()						#plotting
-#terrain_mask.main()				    #terrain mask generation
-#metrics.main()							#sky brightness metrics calculation
+terrain_mask.main()				    #terrain mask generation
+metrics.main()							#sky brightness metrics calculation
 
 	
 	
